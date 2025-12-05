@@ -1,10 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react'
 import Arena from '../components/Arena'
 import { LEVEL_CONFIGS, CURVE_CONSTANT } from '../config'
-import blueHitMp3 from '../../../../../curveball/sounds/3_pPaddleBounce.mp3'
-import redHitMp3 from '../../../../../curveball/sounds/2_wallBounce1.mp3'
-import missMp3 from '../../../../../curveball/sounds/4_missSound.mp3'
-import wallBounceMp3 from '../../../../../curveball/sounds/5_ePaddleBounce.mp3'
+import blueHitMp3 from '../../../assets/sounds/3_pPaddleBounce.mp3'
+import redHitMp3 from '../../../assets/sounds/2_wallBounce1.mp3'
+import missMp3 from '../../../assets/sounds/4_missSound.mp3'
+import wallBounceMp3 from '../../../assets/sounds/5_ePaddleBounce.mp3'
 
 export default function Game() {
   const areaRef = useRef<HTMLDivElement | null>(null)
