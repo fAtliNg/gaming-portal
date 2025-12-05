@@ -1,0 +1,24 @@
+{
+  "name": "curveball",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --port 2006 --strictPort",
+    "server": "node server/index.js",
+    "build": "vite build --base /curveball",
+    "postbuild": "mkdir -p dist/game dist/high-scores && cp dist/index.html dist/game/index.html && cp dist/index.html dist/high-scores/index.html"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.30.2",
+    "express": "^4.21.1",
+    "cors": "^2.8.5"
+  },
+  "devDependencies": {
+    "vite": "^4.5.3",
+    "@vitejs/plugin-react": "^4.2.0",
+    "typescript": "^5.4.5"
+  }
+}
