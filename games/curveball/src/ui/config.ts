@@ -26,4 +26,4 @@ export const LEVEL_CONFIGS: LevelConfig[] = [
 //   { ballSpeed: 3, botMaxSpeed: 300 },
 // ]
 
-export const CURVE_CONSTANT = 0.024
+export const CURVE_CONSTANT = 0.036

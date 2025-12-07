@@ -226,7 +226,7 @@ export default function Game() {
       const spin = spinRef.current
       nvx = nvx + (-vyPrev) * spin * kMag * dt
       nvy = nvy + (vxPrev) * spin * kMag * dt
-      spinRef.current = spinRef.current * 0.998
+      spinRef.current = spinRef.current * 0.997
       const maxX = rect.width / 2 - baseBall / 2 - 4
       const maxY = rect.height / 2 - baseBall / 2 - 4
       if (nx > maxX) { nx = maxX; nvx = -nvx * 0.9; playWallBounce() }
@@ -439,9 +439,9 @@ export default function Game() {
           if (redHitTimerRef.current) window.clearTimeout(redHitTimerRef.current)
           redHitTimerRef.current = window.setTimeout(() => setRedHit(null), 240)
           {
-            const kSpinH = 3.6
-            const kSpinV = 3.6
-            const kSpinVel = 420
+            const kSpinH = 4.8
+            const kSpinV = 4.8
+            const kSpinVel = 520
             {
               const minV = 0.08
               const speed = Math.hypot(g.pvx, g.pvy)
@@ -461,7 +461,7 @@ export default function Game() {
               const speedBoost = 1 + 0.9 * Math.min(2, speedMag)
               const msExtra = Math.max(0, p.ms - 500)
               const botSpinBoost = p.ms > 500 ? Math.min(1.4, 1.1 + 0.0002 * msExtra) : 1
-              const maxS = 16
+              const maxS = 20
               spinRef.current = Math.max(-maxS, Math.min(maxS, raw * edgeMul * speedBoost * botSpinBoost))
             }
           }
@@ -517,15 +517,15 @@ export default function Game() {
           if (blueHitTimerRef.current) window.clearTimeout(blueHitTimerRef.current)
           blueHitTimerRef.current = window.setTimeout(() => setBlueHit(null), 240)
           {
-            const kSpinH = 3.6
-            const kSpinV = 3.6
-            const kSpinVel = 420
+            const kSpinH = 4.8
+            const kSpinV = 4.8
+            const kSpinVel = 520
             const raw = kSpinH * hx - kSpinV * hy + kSpinVel * (g.pvx * hy - g.pvy * hx)
             const edgeFactor = Math.min(1, Math.hypot(hx, hy))
             const edgeMul = 3.2 * (edgeFactor * edgeFactor)
             const speedMag = Math.hypot(g.pvx, g.pvy)
             const speedBoost = 1 + 0.9 * Math.min(2, speedMag)
-            const maxS = 16
+            const maxS = 20
             spinRef.current = Math.max(-maxS, Math.min(maxS, raw * edgeMul * speedBoost))
           }
 
@@ -697,14 +697,14 @@ export default function Game() {
       blueHitTimerRef.current = window.setTimeout(() => setBlueHit(null), 240)
       {
         const kSpinH = 3.6
-        const kSpinV = 3.6
-        const kSpinVel = 420
+        const kSpinV = 4.8
+        const kSpinVel = 520
         const raw = kSpinH * hx - kSpinV * hy + kSpinVel * (paddleVelRef.current.x * hy - paddleVelRef.current.y * hx)
         const edgeFactor = Math.min(1, Math.hypot(hx, hy))
         const edgeMul = 3.2 * (edgeFactor * edgeFactor)
         const speedMag = Math.hypot(paddleVelRef.current.x, paddleVelRef.current.y)
         const speedBoost = 1 + 0.9 * Math.min(2, speedMag)
-        const maxS = 16
+        const maxS = 20
         const scale = cfg0.firstHitSpinScale
         spinRef.current = Math.max(-maxS, Math.min(maxS, raw * scale * edgeMul * speedBoost))
       }
