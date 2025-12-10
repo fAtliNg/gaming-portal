@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from 'react'
+import { useTheme } from 'styled-components'
 
 type Props = {
   lineColor?: string
@@ -10,7 +11,12 @@ type Props = {
   highlightColor?: string
 }
 
-export default function Arena({ lineColor = '#21f36b', ballColor = '#21f36b', background = '#000', showBall = true, aspect = 1.55, highlightIndex = -1, highlightColor = 'rgb(155, 252, 251)' }: Props) {
+export default function Arena({ lineColor, ballColor, background, showBall = true, aspect = 1.55, highlightIndex = -1, highlightColor }: Props) {
+  const theme: any = useTheme()
+  const effectiveLineColor = lineColor ?? theme?.colors?.hudText ?? '#78e7ff'
+  const effectiveBallColor = ballColor ?? theme?.colors?.hudText ?? '#78e7ff'
+  const effectiveBackground = background ?? theme?.colors?.bg ?? '#000'
+  const effectiveHighlightColor = highlightColor ?? theme?.colors?.neonTeal ?? 'rgb(155, 252, 251)'
   const ref = useRef<HTMLCanvasElement | null>(null)
 
   useEffect(() => {
@@ -95,8 +101,8 @@ export default function Arena({ lineColor = '#21f36b', ballColor = '#21f36b', ba
         const x = cx - rw / 2
         const y = cy - rh / 2
         const k = 1 - (i / (depth - 1)) * 0.5
-        const hc = highlightColor || toShade(lineColor, 1.6)
-        ctx.strokeStyle = i === highlightIndex ? hc : toShade(lineColor, k)
+        const hc = effectiveHighlightColor || toShade(effectiveLineColor, 1.6)
+        ctx.strokeStyle = i === highlightIndex ? hc : toShade(effectiveLineColor, k)
         ctx.strokeRect(x, y, rw, rh)
         if (i > 0) {
           const prw = baseW * s(i - 1)
@@ -124,13 +130,13 @@ export default function Arena({ lineColor = '#21f36b', ballColor = '#21f36b', ba
       const r = Math.min(w, h) * 0.02
       if (bx < r || bx > w - r) vx *= -1
       if (by < r || by > h - r) vy *= -1
-      ctx.fillStyle = background
+      ctx.fillStyle = effectiveBackground
       ctx.fillRect(0, 0, w, h)
       drawTunnel()
       if (showBall) {
         ctx.beginPath()
         ctx.arc(bx, by, r, 0, Math.PI * 2)
-        ctx.strokeStyle = ballColor
+        ctx.strokeStyle = effectiveBallColor
         ctx.lineWidth = 3
         ctx.stroke()
       }
@@ -145,7 +151,7 @@ export default function Arena({ lineColor = '#21f36b', ballColor = '#21f36b', ba
       cancelAnimationFrame(raf)
       obs.disconnect()
     }
-  }, [lineColor, ballColor, background, showBall, aspect, highlightIndex, highlightColor])
+  }, [effectiveLineColor, effectiveBallColor, effectiveBackground, showBall, aspect, highlightIndex, effectiveHighlightColor])
 
   return <canvas ref={ref} className="arena" />
 }
