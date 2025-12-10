@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import Arena from '../../components/Arena'
+import { useThemeMode } from '../../ThemeModeProvider'
 import { LEVEL_CONFIGS, CURVE_CONSTANT } from '../../config'
 import blueHitMp3 from '../../../../assets/sounds/3_pPaddleBounce.mp3'
 import redHitMp3 from '../../../../assets/sounds/2_wallBounce1.mp3'
@@ -740,6 +741,7 @@ export default function Game() {
       enterFullscreen()
     }
   }
+  const { mode, toggle } = useThemeMode()
 
   return (
     <div className="screen" ref={screenRef}>
@@ -760,6 +762,25 @@ export default function Game() {
                 <path d="M19 9V5H15" />
                 <path d="M5 15V19H9" />
                 <path d="M19 15V19H15" />
+              </svg>
+            )}
+          </button>
+          <button type="button" className="fs-toggle" onClick={toggle} aria-label={'Switch theme'}>
+            {mode === 'blue' ? (
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="5" />
+                <path d="M4 12h2" />
+                <path d="M18 12h2" />
+                <path d="M12 4v2" />
+                <path d="M12 18v2" />
+                <path d="M5.6 5.6l1.4 1.4" />
+                <path d="M17 17l1.4 1.4" />
+                <path d="M17 7l1.4-1.4" />
+                <path d="M5.6 18.4L7 17" />
+              </svg>
+            ) : (
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
               </svg>
             )}
           </button>

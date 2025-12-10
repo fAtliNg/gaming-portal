@@ -13,7 +13,7 @@ type Props = {
 
 export default function Arena({ lineColor, ballColor, background, showBall = true, aspect = 1.55, highlightIndex = -1, highlightColor }: Props) {
   const theme: any = useTheme()
-  const effectiveLineColor = lineColor ?? theme?.colors?.hudText ?? '#78e7ff'
+  const effectiveLineColor = lineColor ?? theme?.colors?.gridLine ?? theme?.colors?.hudText ?? '#78e7ff'
   const effectiveBallColor = ballColor ?? theme?.colors?.hudText ?? '#78e7ff'
   const effectiveBackground = background ?? theme?.colors?.bg ?? '#000'
   const effectiveHighlightColor = highlightColor ?? theme?.colors?.neonTeal ?? 'rgb(155, 252, 251)'

@@ -7,6 +7,7 @@ declare module 'styled-components' {
       text: string
       btnBg: string
       btnText: string
+      gridLine: string
       panelBorder: string
       panelBg: string
       panelShadowOuter: string
