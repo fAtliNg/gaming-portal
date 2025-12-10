@@ -10,15 +10,16 @@
     "postbuild": "mkdir -p dist/game dist/high-scores && cp dist/index.html dist/game/index.html && cp dist/index.html dist/high-scores/index.html"
   },
   "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.30.2",
-    "express": "^4.21.1",
-    "cors": "^2.8.5"
+    "styled-components": "^6.1.19"
   },
   "devDependencies": {
-    "vite": "^4.5.3",
     "@vitejs/plugin-react": "^4.2.0",
-    "typescript": "^5.4.5"
+    "typescript": "^5.4.5",
+    "vite": "^4.5.3"
   }
 }
