@@ -12,7 +12,6 @@ const GlobalStyle = createGlobalStyle`
   .title-overlay { position: absolute; left: 50%; transform: translateX(-50%); top: calc(var(--tunnel-top) + var(--tunnel-h) * 0.115); width: var(--tunnel-w); text-align: center; font-family: 'Orbitron', system-ui; font-weight: 900; font-size: var(--title-fs); letter-spacing: var(--title-ls); text-transform: uppercase; color: ${({ theme }) => theme.colors.overlayTitleText}; white-space: nowrap; }
   .btn { appearance: none; background: ${({ theme }) => theme.colors.btnBg}; color: ${({ theme }) => theme.colors.btnText}; border: none; border-radius: 16px; text-decoration: none; padding: clamp(7px, calc(var(--tunnel-w) * 0.01), 11px) clamp(8px, calc(var(--tunnel-w) * 0.012), 12px); font-family: 'Orbitron', system-ui; font-weight: 700; font-size: clamp(12px, calc(var(--tunnel-w) * 0.028), 22px); cursor: pointer; letter-spacing: 0.16em; text-transform: uppercase; width: clamp(170px, calc(var(--tunnel-w) * 0.28), 360px); text-align: center; box-shadow: 0 6px 16px ${({ theme }) => theme.colors.btnShadow}; }
   .btn:active { transform: translateY(1px); }
-  .arena { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 
   .game-area { position: absolute; left: 50%; transform: translateX(-50%); top: var(--tunnel-top); width: var(--tunnel-w); height: var(--tunnel-h); pointer-events: auto; touch-action: none; }
   .highscores-area { position: absolute; left: 50%; transform: translateX(-50%); top: var(--tunnel-top); width: var(--tunnel-w); height: var(--tunnel-h); pointer-events: auto; }

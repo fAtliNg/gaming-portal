@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react'
 import { useTheme } from 'styled-components'
+import { Canvas } from './styled'
 
 type Props = {
   lineColor?: string
@@ -151,6 +152,5 @@ export default function Arena({ lineColor, ballColor, background, showBall = tru
     }
   }, [effectiveLineColor, effectiveBallColor, effectiveBackground, showBall, aspect, highlightIndex, effectiveHighlightColor])
 
-  return <canvas ref={ref} className="arena" />
+  return <Canvas ref={ref} />
 }
-
