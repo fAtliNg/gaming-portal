@@ -64,7 +64,6 @@ export default function Arena({ lineColor, ballColor, background, showBall = tru
             const w100 = ctx.measureText('CURVEBALL').width || 800
             ctx.restore()
             const target = baseW * 0.88
-            // оценка вклада letter-spacing в ширину: (n-1) * ls * fontSize
             const n = 9
             const ls = Math.max(0.12, Math.min(0.2, baseW / 2200))
             const fs = Math.min(160, Math.max(44, (target * 100) / (w100 + ls * 100 * (n - 1))))
@@ -73,7 +72,6 @@ export default function Arena({ lineColor, ballColor, background, showBall = tru
           } catch { }
         }
         computeFs()
-        // Повторно после загрузки шрифта
         // @ts-ignore
         document.fonts?.ready?.then(() => computeFs())
       }
@@ -155,3 +153,4 @@ export default function Arena({ lineColor, ballColor, background, showBall = tru
 
   return <canvas ref={ref} className="arena" />
 }
+
