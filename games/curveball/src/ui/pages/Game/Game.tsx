@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import Arena from '../../components/Arena'
+import { Screen, Orient, FsControls, FsToggle, GameArea, HudLeft, HudRight, HudLevel, HudScore, HudLives, LifeDot, LevelOverlay, GameOverOverlay, DepthHighlight, Ball, Paddle, PCenter, PVTop, PVBottom, PHLeft, PHRight, PaddleOpponent, P2Center, P2VTop, P2VBottom, P2HLeft, P2HRight, PHitCenter, PHitBL, PHitBR, PHitTL, PHitTR, P2HitCenter, P2HitBL, P2HitBR, P2HitTL, P2HitTR } from './styled'
 import { useThemeMode } from '../../ThemeModeProvider'
 import { LEVEL_CONFIGS, CURVE_CONSTANT } from '../../config'
 import blueHitMp3 from '../../../../assets/sounds/3_pPaddleBounce.mp3'
@@ -744,11 +745,11 @@ export default function Game() {
   const { mode, toggle } = useThemeMode()
 
   return (
-    <div className="screen" ref={screenRef}>
-      <div className="orient">
+    <Screen ref={screenRef}>
+      <Orient>
         <Arena showBall={false} aspect={1.55} />
-        <div className="fs-controls">
-          <button type="button" className="fs-toggle" onClick={toggleFullscreen} aria-label={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}>
+        <FsControls>
+          <FsToggle type="button" onClick={toggleFullscreen} aria-label={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}>
             {isFullscreen ? (
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M9 9H5V5" />
@@ -764,8 +765,8 @@ export default function Game() {
                 <path d="M19 15V19H15" />
               </svg>
             )}
-          </button>
-          <button type="button" className="fs-toggle" onClick={toggle} aria-label={'Switch theme'}>
+          </FsToggle>
+          <FsToggle type="button" onClick={toggle} aria-label={'Switch theme'}>
             {mode === 'blue' ? (
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="12" cy="12" r="5" />
@@ -783,74 +784,69 @@ export default function Game() {
                 <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
               </svg>
             )}
-          </button>
-        </div>
-        <div
-          className="game-area"
+          </FsToggle>
+        </FsControls>
+        <GameArea
           ref={areaRef}
           onPointerMove={onPointerMove}
           onPointerDown={onPointerDown}
         >
-          <div className="hud-left">
-            <div className="hud-score">score: {score}</div>
-            <div className="hud-lives">
+          <HudLeft>
+            <HudScore>score: {score}</HudScore>
+            <HudLives>
               {Array.from({ length: Math.max(0, redLives - 1) }).map((_, i) => (
-                <div key={i} className="life-dot red" />
+                <LifeDot key={i} $variant="red" />
               ))}
-            </div>
-          </div>
-          <div className="hud-right">
-            <div className="hud-level">LEVEL: {level}</div>
-            <div className="hud-lives">
+            </HudLives>
+          </HudLeft>
+          <HudRight>
+            <HudLevel>LEVEL: {level}</HudLevel>
+            <HudLives>
               {Array.from({ length: Math.max(0, blueLives - 1) }).map((_, i) => (
-                <div key={i} className="life-dot blue" />
+                <LifeDot key={i} $variant="blue" />
               ))}
-            </div>
-          </div>
+            </HudLives>
+          </HudRight>
           {showLevel && (
-            <div className="level-overlay">LEVEL {level}</div>
+            <LevelOverlay>LEVEL {level}</LevelOverlay>
           )}
           {gameOver && (
-            <div className="game-over-overlay">GAME OVER</div>
+            <GameOverOverlay>GAME OVER</GameOverOverlay>
           )}
-          <div className="depth-highlight" style={{ transform: `translate(-50%, -50%) scale(${s(ballDepth)})` }} />
+          <DepthHighlight style={{ transform: `translate(-50%, -50%) scale(${s(ballDepth)})` }} />
           {!gameOver && (
-            <div className={`ball${missed ? ' miss' : ''}`} style={{ transform: `translate(calc(-50% + ${ballX * s(ballDepth)}px), calc(-50% + ${ballY * s(ballDepth)}px)) scale(${s(ballDepth)})` }} />
-          )}
-          {!gameOver && (
-            <div className="paddle-opponent" ref={opponentRef} style={{ left: `${oppPos.x}px`, top: `${oppPos.y}px` }}>
-              {redHit === 'center' && <div className="p2-hit center" />}
-              {redHit === 'bottom-left' && <div className="p2-hit bottom-left" />}
-              {redHit === 'bottom-right' && <div className="p2-hit bottom-right" />}
-              {redHit === 'top-left' && <div className="p2-hit top-left" />}
-              {redHit === 'top-right' && <div className="p2-hit top-right" />}
-              <div className="p2-center" />
-              <div className="p2-v-top" />
-              <div className="p2-v-bottom" />
-              <div className="p2-h-left" />
-              <div className="p2-h-right" />
-            </div>
+            <Ball $missed={missed} style={{ transform: `translate(calc(-50% + ${ballX * s(ballDepth)}px), calc(-50% + ${ballY * s(ballDepth)}px)) scale(${s(ballDepth)})` }} />
           )}
           {!gameOver && (
-            <div
-              className="paddle"
-              ref={paddleRef}
-              style={{ left: `${pos.x}px`, top: `${pos.y}px` }}
-            >
-              {blueHit === 'center' && <div className="p-hit center" />}
-              {blueHit === 'bottom-left' && <div className="p-hit bottom-left" />}
-              {blueHit === 'bottom-right' && <div className="p-hit bottom-right" />}
-              {blueHit === 'top-left' && <div className="p-hit top-left" />}
-              {blueHit === 'top-right' && <div className="p-hit top-right" />}
-              <div className="p-center" />
-              <div className="p-v-top" />
-              <div className="p-v-bottom" />
-              <div className="p-h-left" />
-              <div className="p-h-right" />
-            </div>
+            <PaddleOpponent ref={opponentRef} style={{ left: `${oppPos.x}px`, top: `${oppPos.y}px` }}>
+              {redHit === 'center' && <P2HitCenter />}
+              {redHit === 'bottom-left' && <P2HitBL />}
+              {redHit === 'bottom-right' && <P2HitBR />}
+              {redHit === 'top-left' && <P2HitTL />}
+              {redHit === 'top-right' && <P2HitTR />}
+              <P2Center />
+              <P2VTop />
+              <P2VBottom />
+              <P2HLeft />
+              <P2HRight />
+            </PaddleOpponent>
           )}
-        </div>
-      </div>
-    </div>
+          {!gameOver && (
+            <Paddle ref={paddleRef} style={{ left: `${pos.x}px`, top: `${pos.y}px` }}>
+              {blueHit === 'center' && <PHitCenter />}
+              {blueHit === 'bottom-left' && <PHitBL />}
+              {blueHit === 'bottom-right' && <PHitBR />}
+              {blueHit === 'top-left' && <PHitTL />}
+              {blueHit === 'top-right' && <PHitTR />}
+              <PCenter />
+              <PVTop />
+              <PVBottom />
+              <PHLeft />
+              <PHRight />
+            </Paddle>
+          )}
+        </GameArea>
+      </Orient>
+    </Screen>
   )
 }

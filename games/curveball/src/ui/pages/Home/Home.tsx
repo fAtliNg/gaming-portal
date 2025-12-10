@@ -1,20 +1,20 @@
 import React from 'react'
-import { Link } from 'react-router-dom'
 import Arena from '../../components/Arena'
+import { Screen, Orient, TitleOverlay, Center, Menu, BtnLink } from './styled'
 
 export default function Home() {
   return (
-    <div className="screen">
-      <div className="orient">
+    <Screen>
+      <Orient>
         <Arena showBall={false} aspect={1.55} />
-        <div className="title-overlay">CURVEBALL</div>
-        <div className="center">
-          <div className="menu">
-            <Link to="/game" className="btn">Start game</Link>
-            <Link to="/high-scores" className="btn">High score</Link>
-          </div>
-        </div>
-      </div>
-    </div>
+        <TitleOverlay>CURVEBALL</TitleOverlay>
+        <Center>
+          <Menu>
+            <BtnLink to="/game">Start game</BtnLink>
+            <BtnLink to="/high-scores">High score</BtnLink>
+          </Menu>
+        </Center>
+      </Orient>
+    </Screen>
   )
 }

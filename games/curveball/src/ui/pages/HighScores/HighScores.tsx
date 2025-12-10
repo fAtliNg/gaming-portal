@@ -1,26 +1,26 @@
 import React from 'react'
-import { Link } from 'react-router-dom'
 import Arena from '../../components/Arena'
+import { Screen, Orient, HighscoresArea, Panel, Title, Table, Header, MainMenuBtn } from './styled'
 
 export default function HighScores() {
   return (
-    <div className="screen">
-      <div className="orient">
+    <Screen>
+      <Orient>
         <Arena showBall={false} aspect={1.55} />
-        <div className="highscores-area">
-          <div className="hs-panel">
-            <div className="hs-title">HIGH SCORES</div>
-            <div className="hs-table">
-              <div className="hs-header">
+        <HighscoresArea>
+          <Panel>
+            <Title>HIGH SCORES</Title>
+            <Table>
+              <Header>
                 <div className="col level">LEVEL</div>
                 <div className="col score">SCORE</div>
                 <div className="col name">NAME</div>
-              </div>
-            </div>
-          </div>
-          <Link to="/" className="btn hs-mainmenu">MAIN MENU</Link>
-        </div>
-      </div>
-    </div>
+              </Header>
+            </Table>
+          </Panel>
+          <MainMenuBtn to="/">MAIN MENU</MainMenuBtn>
+        </HighscoresArea>
+      </Orient>
+    </Screen>
   )
 }
