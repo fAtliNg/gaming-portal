@@ -7,6 +7,14 @@ import blueHitMp3 from '../../../../assets/sounds/3_pPaddleBounce.mp3'
 import redHitMp3 from '../../../../assets/sounds/2_wallBounce1.mp3'
 import missMp3 from '../../../../assets/sounds/4_missSound.mp3'
 import wallBounceMp3 from '../../../../assets/sounds/5_ePaddleBounce.mp3'
+import { getHitRegion } from './utils/hits'
+import { intersectsCRR } from './utils/geometry'
+import { getParams } from './utils/params'
+import { unit, limitMagnitude, clamp, lerp } from './utils/vector'
+import { makeScale } from './utils/scaling'
+import { tangentVelocity, edgeMultiplier } from './utils/impact'
+import { applyCurve } from './utils/ball'
+import { computeBounds } from './utils/bounds'
 
 export default function Game() {
   const areaRef = useRef<HTMLDivElement | null>(null)
@@ -50,7 +58,7 @@ export default function Game() {
   const depth = 9
   const scaleTarget = 0.25
   const gamma = 0.85
-  const s = (i: number) => Math.pow(scaleTarget, Math.pow(i / (depth - 1), gamma))
+  const s = makeScale(depth, gamma, scaleTarget)
   const posRef = useRef({ x: 0, y: 0 })
   const lastTsRef = useRef<number>(0)
   const paddleVelRef = useRef({ x: 0, y: 0 })
@@ -115,35 +123,7 @@ export default function Game() {
     }
   }
 
-  const getHitRegion = (hx: number, hy: number) => {
-    const ctX = 0.24
-    const ctY = 0.28
-    if (Math.abs(hx) < ctX && Math.abs(hy) < ctY) return 'center'
-    return hy >= 0 ? (hx >= 0 ? 'bottom-right' : 'bottom-left') : (hx >= 0 ? 'top-right' : 'top-left')
-  }
 
-  const intersectsCRR = (
-    cx: number,
-    cy: number,
-    r: number,
-    rx: number,
-    ry: number,
-    w: number,
-    h: number,
-    cr: number
-  ) => {
-    const dx = Math.abs(cx - rx)
-    const dy = Math.abs(cy - ry)
-    const hx = w / 2
-    const hy = h / 2
-    const ix = Math.max(hx - cr, 0)
-    const iy = Math.max(hy - cr, 0)
-    const kx = Math.max(dx - ix, 0)
-    const ky = Math.max(dy - iy, 0)
-    const dist = Math.hypot(kx, ky)
-    if (dx <= ix && dy <= iy) return true
-    return dist <= cr + r
-  }
 
   useEffect(() => {
     setShowLevel(true)
@@ -183,39 +163,7 @@ export default function Game() {
       const cy = rect.height / 2
       const baseBall = Math.min(120, Math.max(40, rect.width * 0.1))
       const dt = 0.016
-      const getParams = (lv: number) => {
-        const m = Math.max(1, lv)
-        const table = [
-          { ac: 1400, damp: 0.88, rt: 300, nz: 28 },
-          { ac: 1600, damp: 0.9, rt: 240, nz: 22 },
-          { ac: 1800, damp: 0.91, rt: 180, nz: 18 },
-          { ac: 2000, damp: 0.92, rt: 140, nz: 12 },
-          { ac: 2200, damp: 0.93, rt: 120, nz: 10 },
-          { ac: 2400, damp: 0.94, rt: 100, nz: 8 },
-          { ac: 2600, damp: 0.95, rt: 80, nz: 6 },
-          { ac: 2800, damp: 0.96, rt: 60, nz: 4 },
-          { ac: 3200, damp: 0.97, rt: 40, nz: 2 },
-          { ac: 5000, damp: 0.985, rt: 0, nz: 0 },
-        ]
-        if (m <= LEVEL_CONFIGS.length) {
-          const cfg = LEVEL_CONFIGS[m - 1]
-          const base = table[m - 1]
-          return { bsX: cfg.ballSpeedX, bsY: cfg.ballSpeedY, bsZ: cfg.ballSpeedZ, ms: cfg.botMaxSpeed, mimicDelayMs: (cfg as any).mimicDelayMs ?? 0, ...base }
-        } else {
-          const extra = m - LEVEL_CONFIGS.length
-          const last = LEVEL_CONFIGS[LEVEL_CONFIGS.length - 1]
-          const bsX = Math.min(2.5, last.ballSpeedX + 0.04 * extra)
-          const bsY = Math.min(2.5, last.ballSpeedY + 0.04 * extra)
-          const bsZ = Math.min(2.2, last.ballSpeedZ + 0.03 * extra)
-          const ms = Math.min(3200, last.botMaxSpeed + 120 * extra)
-          const ac = Math.min(8000, 5000 + 120 * extra)
-          const damp = Math.min(0.995, 0.985 + 0.001 * extra)
-          const rt = 0
-          const nz = 0
-          const mimicDelayMs = ms > 500 ? 100 : 0
-          return { bsX, bsY, bsZ, ms, mimicDelayMs, ac, damp, rt, nz }
-        }
-      }
+
       const p = getParams(level)
       let nd = ballDepthRef.current + 0.14 * p.bsZ * direction
       let nvx = velXRef.current
@@ -224,11 +172,13 @@ export default function Game() {
       let ny = ballYRef.current + nvy * dt
       const vxPrev = nvx
       const vyPrev = nvy
-      const kMag = CURVE_CONSTANT
-      const spin = spinRef.current
-      nvx = nvx + (-vyPrev) * spin * kMag * dt
-      nvy = nvy + (vxPrev) * spin * kMag * dt
-      spinRef.current = spinRef.current * 0.997
+      {
+        const kMag = CURVE_CONSTANT
+        const { vx, vy, spin } = applyCurve(nvx, nvy, spinRef.current, kMag, dt)
+        nvx = vx
+        nvy = vy
+        spinRef.current = spin
+      }
       const maxX = rect.width / 2 - baseBall / 2 - 4
       const maxY = rect.height / 2 - baseBall / 2 - 4
       if (nx > maxX) { nx = maxX; nvx = -nvx * 0.9; playWallBounce() }
@@ -321,36 +271,27 @@ export default function Game() {
               }
             }
           } else {
-            const dm = Math.hypot(oppInertiaDirRef.current.x, oppInertiaDirRef.current.y) || 1
-            const sx = oppInertiaDirRef.current.x / dm
-            const sy = oppInertiaDirRef.current.y / dm
+            const { ux: sx, uy: sy } = unit(oppInertiaDirRef.current.x, oppInertiaDirRef.current.y)
             const sp = p.ms * 0.95
             vx = sx * sp
             vy = sy * sp
           }
           const vLim = p.ms * ((oppBurstUntilRef.current && now < oppBurstUntilRef.current) ? 1.35 : 1)
-          const vMag = Math.hypot(vx, vy)
-          if (vMag > vLim) {
-            vx = (vx / vMag) * vLim
-            vy = (vy / vMag) * vLim
-          }
+            ;[vx, vy] = limitMagnitude(vx, vy, vLim)
           let ox = oppPosRef.current.x + vx * dt
           let oy = oppPosRef.current.y + vy * dt
           if (delayedPos) {
             const alpha = (p.mimicDelayMs && p.mimicDelayMs > 0) ? Math.min(1, dt * 8) : 1
-            ox = ox * (1 - alpha) + delayedPos.x * alpha
-            oy = oy * (1 - alpha) + delayedPos.y * alpha
+            ox = lerp(ox, delayedPos.x, alpha)
+            oy = lerp(oy, delayedPos.y, alpha)
           }
           const halfW = w / 2
           const halfH = h / 2
           const bw = rect.width * scBack
           const bh = rect.height * scBack
-          const minX = cx - bw / 2 + halfW
-          const maxX2 = cx + bw / 2 - halfW
-          const minY = cy - bh / 2 + halfH
-          const maxY2 = cy + bh / 2 - halfH
-          ox = Math.max(minX, Math.min(maxX2, ox))
-          oy = Math.max(minY, Math.min(maxY2, oy))
+          const { minX, maxX, minY, maxY } = computeBounds(cx, cy, bw, bh, halfW, halfH)
+          ox = clamp(ox, minX, maxX)
+          oy = clamp(oy, minY, maxY)
           oppPosRef.current = { x: ox, y: oy }
           oppVelRef.current = { x: vx, y: vy }
           setOppPos(oppPosRef.current)
@@ -362,27 +303,20 @@ export default function Game() {
           const ty2 = cy + ny * scBack
           const dx2 = tx2 - oppPosRef.current.x
           const dy2 = ty2 - oppPosRef.current.y
-          const d2 = Math.hypot(dx2, dy2) || 1
-          let vx = (dx2 / d2) * p.ms * 0.85
-          let vy = (dy2 / d2) * p.ms * 0.85
+          const { ux: udx, uy: udy } = unit(dx2, dy2)
+          let vx = udx * p.ms * 0.85
+          let vy = udy * p.ms * 0.85
           const vLim = p.ms
-          const vMag = Math.hypot(vx, vy)
-          if (vMag > vLim) {
-            vx = (vx / vMag) * vLim
-            vy = (vy / vMag) * vLim
-          }
+            ;[vx, vy] = limitMagnitude(vx, vy, vLim)
           let ox = oppPosRef.current.x + vx * dt
           let oy = oppPosRef.current.y + vy * dt
           const bw = rect.width * scBack
           const bh = rect.height * scBack
           const halfW = w / 2
           const halfH = h / 2
-          const minX = cx - bw / 2 + halfW
-          const maxX2 = cx + bw / 2 - halfW
-          const minY = cy - bh / 2 + halfH
-          const maxY2 = cy + bh / 2 - halfH
-          ox = Math.max(minX, Math.min(maxX2, ox))
-          oy = Math.max(minY, Math.min(maxY2, oy))
+          const { minX, maxX, minY, maxY } = computeBounds(cx, cy, bw, bh, halfW, halfH)
+          ox = clamp(ox, minX, maxX)
+          oy = clamp(oy, minY, maxY)
           oppPosRef.current = { x: ox, y: oy }
           oppVelRef.current = { x: vx, y: vy }
           setOppPos(oppPosRef.current)
@@ -404,16 +338,7 @@ export default function Game() {
           const kVel = 180
           {
             const minV = 0.08
-            const speed = Math.hypot(g.pvx, g.pvy)
-            let vvx = g.pvx
-            let vvy = g.pvy
-            if (speed < minV) {
-              const tx = -hy
-              const ty = hx
-              const tmag = Math.hypot(tx, ty) || 1
-              vvx = (tx / tmag) * minV
-              vvy = (ty / tmag) * minV
-            }
+            const { vvx, vvy } = tangentVelocity(hx, hy, g.pvx, g.pvy, minV)
             const msExtra = Math.max(0, p.ms - 500)
             const hitBoost = p.ms > 500 ? Math.min(1.5, 1.22 + 0.0003 * msExtra) : 1
             nvx = (nvx * 0.92 + hx * kHit * hitBoost + vvx * kVel * hitBoost) * p.bsX
@@ -433,8 +358,8 @@ export default function Game() {
           }
           oppInertiaUntilRef.current = performance.now() + Math.min(1200, 500 + 40 * level)
           {
-            const mv = Math.hypot(oppVelRef.current.x, oppVelRef.current.y) || 1
-            oppInertiaDirRef.current = { x: oppVelRef.current.x / mv, y: oppVelRef.current.y / mv }
+            const { ux, uy } = unit(oppVelRef.current.x, oppVelRef.current.y)
+            oppInertiaDirRef.current = { x: ux, y: uy }
             oppKeepInertiaRef.current = true
           }
           setRedHit(getHitRegion(hx, hy))
@@ -446,19 +371,9 @@ export default function Game() {
             const kSpinVel = 520
             {
               const minV = 0.08
-              const speed = Math.hypot(g.pvx, g.pvy)
-              let vvx = g.pvx
-              let vvy = g.pvy
-              if (speed < minV) {
-                const tx = -hy
-                const ty = hx
-                const tmag = Math.hypot(tx, ty) || 1
-                vvx = (tx / tmag) * minV
-                vvy = (ty / tmag) * minV
-              }
+              const { vvx, vvy } = tangentVelocity(hx, hy, g.pvx, g.pvy, minV)
               const raw = kSpinH * hx - kSpinV * hy + kSpinVel * (vvx * hy - vvy * hx)
-              const edgeFactor = Math.min(1, Math.hypot(hx, hy))
-              const edgeMul = 3.2 * (edgeFactor * edgeFactor)
+              const edgeMul = edgeMultiplier(hx, hy)
               const speedMag = Math.hypot(vvx, vvy)
               const speedBoost = 1 + 0.9 * Math.min(2, speedMag)
               const msExtra = Math.max(0, p.ms - 500)
@@ -523,8 +438,7 @@ export default function Game() {
             const kSpinV = 4.8
             const kSpinVel = 520
             const raw = kSpinH * hx - kSpinV * hy + kSpinVel * (g.pvx * hy - g.pvy * hx)
-            const edgeFactor = Math.min(1, Math.hypot(hx, hy))
-            const edgeMul = 3.2 * (edgeFactor * edgeFactor)
+            const edgeMul = edgeMultiplier(hx, hy)
             const speedMag = Math.hypot(g.pvx, g.pvy)
             const speedBoost = 1 + 0.9 * Math.min(2, speedMag)
             const maxS = 20
@@ -702,8 +616,7 @@ export default function Game() {
         const kSpinV = 4.8
         const kSpinVel = 520
         const raw = kSpinH * hx - kSpinV * hy + kSpinVel * (paddleVelRef.current.x * hy - paddleVelRef.current.y * hx)
-        const edgeFactor = Math.min(1, Math.hypot(hx, hy))
-        const edgeMul = 3.2 * (edgeFactor * edgeFactor)
+        const edgeMul = edgeMultiplier(hx, hy)
         const speedMag = Math.hypot(paddleVelRef.current.x, paddleVelRef.current.y)
         const speedBoost = 1 + 0.9 * Math.min(2, speedMag)
         const maxS = 20
