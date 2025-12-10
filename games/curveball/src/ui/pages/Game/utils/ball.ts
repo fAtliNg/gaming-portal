@@ -14,3 +14,6 @@ export function applyCurve(
   return { vx, vy, spin: s2 }
 }
 
+export function computeBaseBall(width: number): number {
+  return Math.min(120, Math.max(40, width * 0.1))
+}

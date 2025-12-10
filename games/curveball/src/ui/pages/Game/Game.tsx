@@ -2,6 +2,10 @@ import React, { useEffect, useRef, useState } from 'react'
 import Arena from '../../components/Arena'
 import { Screen, Orient, FsControls, FsToggle, GameArea, HudLeft, HudRight, HudLevel, HudScore, HudLives, LifeDot, LevelOverlay, GameOverOverlay, DepthHighlight, Ball, Paddle, PCenter, PVTop, PVBottom, PHLeft, PHRight, PaddleOpponent, P2Center, P2VTop, P2VBottom, P2HLeft, P2HRight, PHitCenter, PHitBL, PHitBR, PHitTL, PHitTR, P2HitCenter, P2HitBL, P2HitBR, P2HitTL, P2HitTR } from './styled'
 import { useThemeMode } from '../../ThemeModeProvider'
+import IconFullscreenExit from '../../icons/IconFullscreenExit'
+import IconFullscreenEnter from '../../icons/IconFullscreenEnter'
+import IconSun from '../../icons/IconSun'
+import IconMoon from '../../icons/IconMoon'
 import { LEVEL_CONFIGS, CURVE_CONSTANT } from '../../config'
 import blueHitMp3 from '../../../../assets/sounds/3_pPaddleBounce.mp3'
 import redHitMp3 from '../../../../assets/sounds/2_wallBounce1.mp3'
@@ -13,8 +17,12 @@ import { getParams } from './utils/params'
 import { unit, limitMagnitude, clamp, lerp } from './utils/vector'
 import { makeScale } from './utils/scaling'
 import { tangentVelocity, edgeMultiplier } from './utils/impact'
-import { applyCurve } from './utils/ball'
+import { applyCurve, computeBaseBall } from './utils/ball'
 import { computeBounds } from './utils/bounds'
+import { playSound } from './utils/sound'
+import { pointsForRegion } from './utils/score'
+import { toggleFullscreen as toggleFsUtil } from './utils/fullscreen'
+import { DEPTH, SCALE_TARGET, GAMMA, LEVEL_OVERLAY_MS, BOUNDARY_PADDING, FRONT_HIT_K, FRONT_VEL_K, BACK_HIT_K, BACK_VEL_K, SPIN_K_H, SPIN_K_V, FIRST_SPIN_K_H, FIRST_SPIN_K_V, SPIN_VEL_K, MAX_SPIN, MISS_RESET_DELAY_MS, HIT_OVERLAY_MS, WALL_BOUNCE_VOLUME, BLUE_HIT_VOLUME, RED_HIT_VOLUME, MISS_VOLUME } from './utils/constants'
 
 export default function Game() {
   const areaRef = useRef<HTMLDivElement | null>(null)
@@ -55,9 +63,9 @@ export default function Game() {
   const oppBurstUntilRef = useRef<number>(0)
   const oppKeepInertiaRef = useRef(false)
   const oppInertiaDirRef = useRef({ x: 0, y: 0 })
-  const depth = 9
-  const scaleTarget = 0.25
-  const gamma = 0.85
+  const depth = DEPTH
+  const scaleTarget = SCALE_TARGET
+  const gamma = GAMMA
   const s = makeScale(depth, gamma, scaleTarget)
   const posRef = useRef({ x: 0, y: 0 })
   const lastTsRef = useRef<number>(0)
@@ -66,34 +74,6 @@ export default function Game() {
   const gameOverTimerRef = useRef<number | null>(null)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const backHistoryRef = useRef<{ ts: number; x: number; y: number; vx: number; vy: number }[]>([])
-  const playBlueHit = () => {
-    try {
-      const a = new Audio(blueHitMp3)
-      a.volume = 0.7
-      a.play()
-    } catch { }
-  }
-  const playRedHit = () => {
-    try {
-      const a = new Audio(redHitMp3)
-      a.volume = 0.75
-      a.play()
-    } catch { }
-  }
-  const playMiss = () => {
-    try {
-      const a = new Audio(missMp3)
-      a.volume = 0.8
-      a.play()
-    } catch { }
-  }
-  const playWallBounce = () => {
-    try {
-      const a = new Audio(wallBounceMp3)
-      a.volume = 0.6
-      a.play()
-    } catch { }
-  }
 
   const centerOpponent = (rect: DOMRect) => {
     const cx = rect.width / 2
@@ -127,7 +107,7 @@ export default function Game() {
 
   useEffect(() => {
     setShowLevel(true)
-    const timer = setTimeout(() => setShowLevel(false), 1000)
+    const timer = setTimeout(() => setShowLevel(false), LEVEL_OVERLAY_MS)
     return () => clearTimeout(timer)
   }, [level])
 
@@ -161,7 +141,7 @@ export default function Game() {
       const rect = area.getBoundingClientRect()
       const cx = rect.width / 2
       const cy = rect.height / 2
-      const baseBall = Math.min(120, Math.max(40, rect.width * 0.1))
+      const baseBall = computeBaseBall(rect.width)
       const dt = 0.016
 
       const p = getParams(level)
@@ -179,12 +159,12 @@ export default function Game() {
         nvy = vy
         spinRef.current = spin
       }
-      const maxX = rect.width / 2 - baseBall / 2 - 4
-      const maxY = rect.height / 2 - baseBall / 2 - 4
-      if (nx > maxX) { nx = maxX; nvx = -nvx * 0.9; playWallBounce() }
-      if (nx < -maxX) { nx = -maxX; nvx = -nvx * 0.9; playWallBounce() }
-      if (ny > maxY) { ny = maxY; nvy = -nvy * 0.9; playWallBounce() }
-      if (ny < -maxY) { ny = -maxY; nvy = -nvy * 0.9; playWallBounce() }
+      const maxX = rect.width / 2 - baseBall / 2 - BOUNDARY_PADDING
+      const maxY = rect.height / 2 - baseBall / 2 - BOUNDARY_PADDING
+      if (nx > maxX) { nx = maxX; nvx = -nvx * 0.9; playSound(wallBounceMp3, WALL_BOUNCE_VOLUME) }
+      if (nx < -maxX) { nx = -maxX; nvx = -nvx * 0.9; playSound(wallBounceMp3, WALL_BOUNCE_VOLUME) }
+      if (ny > maxY) { ny = maxY; nvy = -nvy * 0.9; playSound(wallBounceMp3, WALL_BOUNCE_VOLUME) }
+      if (ny < -maxY) { ny = -maxY; nvy = -nvy * 0.9; playSound(wallBounceMp3, WALL_BOUNCE_VOLUME) }
       {
         const now = performance.now()
         const scBackHist = s(depth - 1)
@@ -334,8 +314,8 @@ export default function Game() {
           setDirection(-1)
           const hx = (bcx - g.x) / (g.w / 2)
           const hy = (bcy - g.y) / (g.h / 2)
-          const kHit = 3
-          const kVel = 180
+          const kHit = BACK_HIT_K
+          const kVel = BACK_VEL_K
           {
             const minV = 0.08
             const { vvx, vvy } = tangentVelocity(hx, hy, g.pvx, g.pvy, minV)
@@ -344,7 +324,7 @@ export default function Game() {
             nvx = (nvx * 0.92 + hx * kHit * hitBoost + vvx * kVel * hitBoost) * p.bsX
             nvy = (nvy * 0.92 + hy * kHit * hitBoost + vvy * kVel * hitBoost) * p.bsY
           }
-          playRedHit()
+          playSound(redHitMp3, RED_HIT_VOLUME)
           {
             const tx2 = -hy
             const ty2 = hx
@@ -364,11 +344,11 @@ export default function Game() {
           }
           setRedHit(getHitRegion(hx, hy))
           if (redHitTimerRef.current) window.clearTimeout(redHitTimerRef.current)
-          redHitTimerRef.current = window.setTimeout(() => setRedHit(null), 240)
+          redHitTimerRef.current = window.setTimeout(() => setRedHit(null), HIT_OVERLAY_MS)
           {
-            const kSpinH = 4.8
-            const kSpinV = 4.8
-            const kSpinVel = 520
+            const kSpinH = SPIN_K_H
+            const kSpinV = SPIN_K_V
+            const kSpinVel = SPIN_VEL_K
             {
               const minV = 0.08
               const { vvx, vvy } = tangentVelocity(hx, hy, g.pvx, g.pvy, minV)
@@ -378,7 +358,7 @@ export default function Game() {
               const speedBoost = 1 + 0.9 * Math.min(2, speedMag)
               const msExtra = Math.max(0, p.ms - 500)
               const botSpinBoost = p.ms > 500 ? Math.min(1.4, 1.1 + 0.0002 * msExtra) : 1
-              const maxS = 20
+              const maxS = MAX_SPIN
               spinRef.current = Math.max(-maxS, Math.min(maxS, raw * edgeMul * speedBoost * botSpinBoost))
             }
           }
@@ -387,7 +367,7 @@ export default function Game() {
           setIsMoving(false)
           setDirection(0)
           setMissed(true)
-          playMiss()
+          playSound(missMp3, MISS_VOLUME)
           oppKeepInertiaRef.current = false
 
           setRedLives((l) => Math.max(l - 1, 0))
@@ -405,7 +385,7 @@ export default function Game() {
             setBallY(0)
             setVelX(0)
             setVelY(0)
-          }, 1000)
+          }, MISS_RESET_DELAY_MS)
         }
       }
       if (direction < 0 && nd <= 0) {
@@ -420,28 +400,28 @@ export default function Game() {
           setDirection(1)
           const hx = (bcx - g.x) / (g.w / 2)
           const hy = (bcy - g.y) / (g.h / 2)
-          const kHit = 3
-          const kVel = 180
+          const kHit = FRONT_HIT_K
+          const kVel = FRONT_VEL_K
           oppKeepInertiaRef.current = false
           nvx = (nvx * 0.92 + hx * kHit + g.pvx * kVel) * p.bsX
           nvy = (nvy * 0.92 + hy * kHit + g.pvy * kVel) * p.bsY
-          playBlueHit()
+          playSound(blueHitMp3, BLUE_HIT_VOLUME)
           {
             const region = getHitRegion(hx, hy)
             setBlueHit(region)
-            setScore((prev) => prev + (region === 'center' ? 50 : 25))
+            setScore((prev) => prev + pointsForRegion(region))
           }
           if (blueHitTimerRef.current) window.clearTimeout(blueHitTimerRef.current)
-          blueHitTimerRef.current = window.setTimeout(() => setBlueHit(null), 240)
+          blueHitTimerRef.current = window.setTimeout(() => setBlueHit(null), HIT_OVERLAY_MS)
           {
-            const kSpinH = 4.8
-            const kSpinV = 4.8
-            const kSpinVel = 520
+            const kSpinH = SPIN_K_H
+            const kSpinV = SPIN_K_V
+            const kSpinVel = SPIN_VEL_K
             const raw = kSpinH * hx - kSpinV * hy + kSpinVel * (g.pvx * hy - g.pvy * hx)
             const edgeMul = edgeMultiplier(hx, hy)
             const speedMag = Math.hypot(g.pvx, g.pvy)
             const speedBoost = 1 + 0.9 * Math.min(2, speedMag)
-            const maxS = 20
+            const maxS = MAX_SPIN
             spinRef.current = Math.max(-maxS, Math.min(maxS, raw * edgeMul * speedBoost))
           }
 
@@ -449,7 +429,7 @@ export default function Game() {
           setIsMoving(false)
           setDirection(0)
           setMissed(true)
-          playMiss()
+          playSound(missMp3, MISS_VOLUME)
           centerOpponent(rect)
 
           setBlueLives((l) => Math.max(l - 1, 0))
@@ -466,7 +446,7 @@ export default function Game() {
             setBallY(0)
             setVelX(0)
             setVelY(0)
-          }, 1000)
+          }, MISS_RESET_DELAY_MS)
         }
       }
       velXRef.current = nvx
@@ -570,7 +550,7 @@ export default function Game() {
     const cy = rect.height / 2
     const pw = paddleRef.current?.offsetWidth || rect.width * 0.18
     const ph = paddleRef.current?.offsetHeight || rect.height * 0.12
-    const baseBall = Math.min(120, Math.max(40, rect.width * 0.1))
+    const baseBall = computeBaseBall(rect.width)
     const r = baseBall / 2
     const bcx = cx + ballX
     const bcy = cy + ballY
@@ -581,8 +561,8 @@ export default function Game() {
       setDirection(1)
       const hx = (bcx - pos.x) / (pw / 2)
       const hy = (bcy - pos.y) / (ph / 2)
-      const kHit = 3
-      const kVel = 180
+      const kHit = FRONT_HIT_K
+      const kVel = FRONT_VEL_K
       const m0 = Math.max(1, level)
       let cfg0: { ballSpeedX: number; ballSpeedY: number; firstHitSpinScale: number }
       if (m0 <= LEVEL_CONFIGS.length) {
@@ -603,57 +583,33 @@ export default function Game() {
       setVelY(vy0 * cfg0.ballSpeedY)
       velXRef.current = vx0 * cfg0.ballSpeedX
       velYRef.current = vy0 * cfg0.ballSpeedY
-      playBlueHit()
+      playSound(blueHitMp3, BLUE_HIT_VOLUME)
       {
         const region = getHitRegion(hx, hy)
         setBlueHit(region)
-        setScore((prev) => prev + (region === 'center' ? 50 : 25))
+        setScore((prev) => prev + pointsForRegion(region))
       }
       if (blueHitTimerRef.current) window.clearTimeout(blueHitTimerRef.current)
-      blueHitTimerRef.current = window.setTimeout(() => setBlueHit(null), 240)
+      blueHitTimerRef.current = window.setTimeout(() => setBlueHit(null), HIT_OVERLAY_MS)
       {
-        const kSpinH = 3.6
-        const kSpinV = 4.8
-        const kSpinVel = 520
+        const kSpinH = FIRST_SPIN_K_H
+        const kSpinV = FIRST_SPIN_K_V
+        const kSpinVel = SPIN_VEL_K
         const raw = kSpinH * hx - kSpinV * hy + kSpinVel * (paddleVelRef.current.x * hy - paddleVelRef.current.y * hx)
         const edgeMul = edgeMultiplier(hx, hy)
         const speedMag = Math.hypot(paddleVelRef.current.x, paddleVelRef.current.y)
         const speedBoost = 1 + 0.9 * Math.min(2, speedMag)
-        const maxS = 20
+        const maxS = MAX_SPIN
         const scale = cfg0.firstHitSpinScale
         spinRef.current = Math.max(-maxS, Math.min(maxS, raw * scale * edgeMul * speedBoost))
       }
     }
   }
 
-  const enterFullscreen = async () => {
-    const el: any = screenRef.current || document.documentElement
-    try {
-      if (el.requestFullscreen) {
-        await el.requestFullscreen()
-      } else if (el.webkitRequestFullscreen) {
-        await el.webkitRequestFullscreen()
-      }
-    } catch { }
-  }
-
-  const exitFullscreen = async () => {
-    const d: any = document as any
-    try {
-      if (document.exitFullscreen) {
-        await document.exitFullscreen()
-      } else if (d.webkitExitFullscreen) {
-        await d.webkitExitFullscreen()
-      }
-    } catch { }
-  }
-
   const toggleFullscreen = () => {
-    if (document.fullscreenElement) {
-      exitFullscreen()
-    } else {
-      enterFullscreen()
-    }
+    const el: any = screenRef.current || document.documentElement
+    const d: any = document as any
+    toggleFsUtil(el, d)
   }
   const { mode, toggle } = useThemeMode()
 
@@ -663,40 +619,10 @@ export default function Game() {
         <Arena showBall={false} aspect={1.55} />
         <FsControls>
           <FsToggle type="button" onClick={toggleFullscreen} aria-label={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}>
-            {isFullscreen ? (
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M9 9H5V5" />
-                <path d="M15 9H19V5" />
-                <path d="M9 15H5V19" />
-                <path d="M15 15H19V19" />
-              </svg>
-            ) : (
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M5 9V5H9" />
-                <path d="M19 9V5H15" />
-                <path d="M5 15V19H9" />
-                <path d="M19 15V19H15" />
-              </svg>
-            )}
+            {isFullscreen ? <IconFullscreenExit /> : <IconFullscreenEnter />}
           </FsToggle>
           <FsToggle type="button" onClick={toggle} aria-label={'Switch theme'}>
-            {mode === 'blue' ? (
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="5" />
-                <path d="M4 12h2" />
-                <path d="M18 12h2" />
-                <path d="M12 4v2" />
-                <path d="M12 18v2" />
-                <path d="M5.6 5.6l1.4 1.4" />
-                <path d="M17 17l1.4 1.4" />
-                <path d="M17 7l1.4-1.4" />
-                <path d="M5.6 18.4L7 17" />
-              </svg>
-            ) : (
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-              </svg>
-            )}
+            {mode === 'blue' ? <IconSun /> : <IconMoon />}
           </FsToggle>
         </FsControls>
         <GameArea

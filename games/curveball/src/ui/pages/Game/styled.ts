@@ -115,7 +115,7 @@ export const LevelOverlay = styled.div`
   position: absolute;
   left: 50%;
   transform: translateX(-50%);
-  top: calc(var(--tunnel-top) + clamp(24px, 7vh, 88px));
+  top: clamp(24px, 6vh, 72px);
   width: var(--tunnel-w);
   text-align: center;
   font-family: 'Orbitron', system-ui;
@@ -123,6 +123,8 @@ export const LevelOverlay = styled.div`
   font-size: clamp(28px, calc(var(--tunnel-w) * 0.12), 110px);
   letter-spacing: 0.18em;
   color: ${({ theme }) => theme.colors.text};
+  z-index: 8;
+  pointer-events: none;
 `
 
 export const GameOverOverlay = styled.div`
