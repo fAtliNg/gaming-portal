@@ -16,13 +16,13 @@ import { intersectsCRR } from './utils/geometry'
 import { getParams } from './utils/params'
 import { unit, limitMagnitude, clamp, lerp } from './utils/vector'
 import { makeScale } from './utils/scaling'
-import { tangentVelocity, edgeMultiplier } from './utils/impact'
-import { applyCurve, computeBaseBall } from './utils/ball'
+import { tangentVelocity, edgeMultiplier, responseBack, computeSpinBack, responseFront, computeSpinFront, computeSpinFirstHit } from './utils/impact'
+import { applyCurve, computeBaseBall, reflectBounds } from './utils/ball'
 import { computeBounds } from './utils/bounds'
 import { playSound } from './utils/sound'
 import { pointsForRegion } from './utils/score'
 import { toggleFullscreen as toggleFsUtil } from './utils/fullscreen'
-import { DEPTH, SCALE_TARGET, GAMMA, LEVEL_OVERLAY_MS, BOUNDARY_PADDING, FRONT_HIT_K, FRONT_VEL_K, BACK_HIT_K, BACK_VEL_K, SPIN_K_H, SPIN_K_V, FIRST_SPIN_K_H, FIRST_SPIN_K_V, SPIN_VEL_K, MAX_SPIN, MISS_RESET_DELAY_MS, HIT_OVERLAY_MS, WALL_BOUNCE_VOLUME, BLUE_HIT_VOLUME, RED_HIT_VOLUME, MISS_VOLUME } from './utils/constants'
+import { DEPTH, SCALE_TARGET, GAMMA, LEVEL_OVERLAY_MS, BOUNDARY_PADDING, FRONT_HIT_K, FRONT_VEL_K, BACK_HIT_K, BACK_VEL_K, SPIN_K_H, SPIN_K_V, FIRST_SPIN_K_H, FIRST_SPIN_K_V, SPIN_VEL_K, MAX_SPIN, MISS_RESET_DELAY_MS, HIT_OVERLAY_MS, WALL_BOUNCE_VOLUME, BLUE_HIT_VOLUME, RED_HIT_VOLUME, MISS_VOLUME } from './constants'
 
 export default function Game() {
   const areaRef = useRef<HTMLDivElement | null>(null)
@@ -161,10 +161,14 @@ export default function Game() {
       }
       const maxX = rect.width / 2 - baseBall / 2 - BOUNDARY_PADDING
       const maxY = rect.height / 2 - baseBall / 2 - BOUNDARY_PADDING
-      if (nx > maxX) { nx = maxX; nvx = -nvx * 0.9; playSound(wallBounceMp3, WALL_BOUNCE_VOLUME) }
-      if (nx < -maxX) { nx = -maxX; nvx = -nvx * 0.9; playSound(wallBounceMp3, WALL_BOUNCE_VOLUME) }
-      if (ny > maxY) { ny = maxY; nvy = -nvy * 0.9; playSound(wallBounceMp3, WALL_BOUNCE_VOLUME) }
-      if (ny < -maxY) { ny = -maxY; nvy = -nvy * 0.9; playSound(wallBounceMp3, WALL_BOUNCE_VOLUME) }
+      {
+        const r = reflectBounds(nx, ny, nvx, nvy, maxX, maxY)
+        nx = r.nx
+        ny = r.ny
+        nvx = r.nvx
+        nvy = r.nvy
+        if (r.bounced) playSound(wallBounceMp3, WALL_BOUNCE_VOLUME)
+      }
       {
         const now = performance.now()
         const scBackHist = s(depth - 1)
@@ -314,15 +318,10 @@ export default function Game() {
           setDirection(-1)
           const hx = (bcx - g.x) / (g.w / 2)
           const hy = (bcy - g.y) / (g.h / 2)
-          const kHit = BACK_HIT_K
-          const kVel = BACK_VEL_K
           {
-            const minV = 0.08
-            const { vvx, vvy } = tangentVelocity(hx, hy, g.pvx, g.pvy, minV)
-            const msExtra = Math.max(0, p.ms - 500)
-            const hitBoost = p.ms > 500 ? Math.min(1.5, 1.22 + 0.0003 * msExtra) : 1
-            nvx = (nvx * 0.92 + hx * kHit * hitBoost + vvx * kVel * hitBoost) * p.bsX
-            nvy = (nvy * 0.92 + hy * kHit * hitBoost + vvy * kVel * hitBoost) * p.bsY
+            const { vx, vy } = responseBack(nvx, nvy, hx, hy, g.pvx, g.pvy, BACK_HIT_K, BACK_VEL_K, p.bsX, p.bsY, p.ms)
+            nvx = vx
+            nvy = vy
           }
           playSound(redHitMp3, RED_HIT_VOLUME)
           {
@@ -346,21 +345,8 @@ export default function Game() {
           if (redHitTimerRef.current) window.clearTimeout(redHitTimerRef.current)
           redHitTimerRef.current = window.setTimeout(() => setRedHit(null), HIT_OVERLAY_MS)
           {
-            const kSpinH = SPIN_K_H
-            const kSpinV = SPIN_K_V
-            const kSpinVel = SPIN_VEL_K
-            {
-              const minV = 0.08
-              const { vvx, vvy } = tangentVelocity(hx, hy, g.pvx, g.pvy, minV)
-              const raw = kSpinH * hx - kSpinV * hy + kSpinVel * (vvx * hy - vvy * hx)
-              const edgeMul = edgeMultiplier(hx, hy)
-              const speedMag = Math.hypot(vvx, vvy)
-              const speedBoost = 1 + 0.9 * Math.min(2, speedMag)
-              const msExtra = Math.max(0, p.ms - 500)
-              const botSpinBoost = p.ms > 500 ? Math.min(1.4, 1.1 + 0.0002 * msExtra) : 1
-              const maxS = MAX_SPIN
-              spinRef.current = Math.max(-maxS, Math.min(maxS, raw * edgeMul * speedBoost * botSpinBoost))
-            }
+            const sVal = computeSpinBack(hx, hy, g.pvx, g.pvy, p.ms)
+            spinRef.current = sVal
           }
 
         } else {
@@ -403,8 +389,11 @@ export default function Game() {
           const kHit = FRONT_HIT_K
           const kVel = FRONT_VEL_K
           oppKeepInertiaRef.current = false
-          nvx = (nvx * 0.92 + hx * kHit + g.pvx * kVel) * p.bsX
-          nvy = (nvy * 0.92 + hy * kHit + g.pvy * kVel) * p.bsY
+          {
+            const { vx, vy } = responseFront(nvx, nvy, hx, hy, g.pvx, g.pvy, kHit, kVel, p.bsX, p.bsY)
+            nvx = vx
+            nvy = vy
+          }
           playSound(blueHitMp3, BLUE_HIT_VOLUME)
           {
             const region = getHitRegion(hx, hy)
@@ -414,15 +403,8 @@ export default function Game() {
           if (blueHitTimerRef.current) window.clearTimeout(blueHitTimerRef.current)
           blueHitTimerRef.current = window.setTimeout(() => setBlueHit(null), HIT_OVERLAY_MS)
           {
-            const kSpinH = SPIN_K_H
-            const kSpinV = SPIN_K_V
-            const kSpinVel = SPIN_VEL_K
-            const raw = kSpinH * hx - kSpinV * hy + kSpinVel * (g.pvx * hy - g.pvy * hx)
-            const edgeMul = edgeMultiplier(hx, hy)
-            const speedMag = Math.hypot(g.pvx, g.pvy)
-            const speedBoost = 1 + 0.9 * Math.min(2, speedMag)
-            const maxS = MAX_SPIN
-            spinRef.current = Math.max(-maxS, Math.min(maxS, raw * edgeMul * speedBoost))
+            const sVal = computeSpinFront(hx, hy, g.pvx, g.pvy, 1)
+            spinRef.current = sVal
           }
 
         } else {
@@ -592,16 +574,9 @@ export default function Game() {
       if (blueHitTimerRef.current) window.clearTimeout(blueHitTimerRef.current)
       blueHitTimerRef.current = window.setTimeout(() => setBlueHit(null), HIT_OVERLAY_MS)
       {
-        const kSpinH = FIRST_SPIN_K_H
-        const kSpinV = FIRST_SPIN_K_V
-        const kSpinVel = SPIN_VEL_K
-        const raw = kSpinH * hx - kSpinV * hy + kSpinVel * (paddleVelRef.current.x * hy - paddleVelRef.current.y * hx)
-        const edgeMul = edgeMultiplier(hx, hy)
-        const speedMag = Math.hypot(paddleVelRef.current.x, paddleVelRef.current.y)
-        const speedBoost = 1 + 0.9 * Math.min(2, speedMag)
-        const maxS = MAX_SPIN
         const scale = cfg0.firstHitSpinScale
-        spinRef.current = Math.max(-maxS, Math.min(maxS, raw * scale * edgeMul * speedBoost))
+        const sVal = computeSpinFirstHit(hx, hy, paddleVelRef.current.x, paddleVelRef.current.y, scale)
+        spinRef.current = sVal
       }
     }
   }
