@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import Arena from '../../components/Arena'
-import { Screen, Orient, FsControls, FsToggle, GameArea, HudLeft, HudRight, HudLevel, HudScore, HudLives, LifeDot, LevelOverlay, GameOverOverlay, DepthHighlight, Ball, Paddle, PCenter, PVTop, PVBottom, PHLeft, PHRight, PaddleOpponent, P2Center, P2VTop, P2VBottom, P2HLeft, P2HRight, PHitCenter, PHitBL, PHitBR, PHitTL, PHitTR, P2HitCenter, P2HitBL, P2HitBR, P2HitTL, P2HitTR } from './styled'
+import { Screen, Orient, FsControls, FsToggle, GameArea, HudLeft, HudRight, HudLevel, HudScore, HudLives, LifeDot, LevelOverlay, GameOverOverlay, DepthHighlight, Paddle, PCenter, PVTop, PVBottom, PHLeft, PHRight, PaddleOpponentBlue } from './styled'
 import { useThemeMode } from '../../ThemeModeProvider'
 import IconFullscreenExit from '../../icons/IconFullscreenExit'
 import IconFullscreenEnter from '../../icons/IconFullscreenEnter'
@@ -22,7 +22,8 @@ import { computeBounds } from './utils/bounds'
 import { playSound } from './utils/sound'
 import { pointsForRegion } from './utils/score'
 import { toggleFullscreen as toggleFsUtil } from './utils/fullscreen'
-import { DEPTH, SCALE_TARGET, GAMMA, LEVEL_OVERLAY_MS, BOUNDARY_PADDING, FRONT_HIT_K, FRONT_VEL_K, BACK_HIT_K, BACK_VEL_K, SPIN_K_H, SPIN_K_V, FIRST_SPIN_K_H, FIRST_SPIN_K_V, SPIN_VEL_K, MAX_SPIN, MISS_RESET_DELAY_MS, HIT_OVERLAY_MS, WALL_BOUNCE_VOLUME, BLUE_HIT_VOLUME, RED_HIT_VOLUME, MISS_VOLUME } from './constants'
+import { DEPTH, SCALE_TARGET, GAMMA, LEVEL_OVERLAY_MS, BOUNDARY_PADDING, FRONT_HIT_K, FRONT_VEL_K, BACK_HIT_K, BACK_VEL_K, MISS_RESET_DELAY_MS, HIT_OVERLAY_MS, WALL_BOUNCE_VOLUME, BLUE_HIT_VOLUME, RED_HIT_VOLUME, MISS_VOLUME } from './constants'
+import { useLocation } from 'react-router-dom'
 
 export default function Game() {
   const areaRef = useRef<HTMLDivElement | null>(null)
@@ -74,6 +75,12 @@ export default function Game() {
   const gameOverTimerRef = useRef<number | null>(null)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const backHistoryRef = useRef<{ ts: number; x: number; y: number; vx: number; vy: number }[]>([])
+  const wsRef = useRef<WebSocket | null>(null)
+  const joinedRef = useRef(false)
+  const loc = useLocation()
+  const params = new URLSearchParams(loc.search)
+  const roomId = params.get('room') || ''
+  const role = (params.get('role') || 'blue') as 'blue' | 'red'
 
   const centerOpponent = (rect: DOMRect) => {
     const cx = rect.width / 2
@@ -82,6 +89,59 @@ export default function Game() {
     oppPosRef.current = { x: cx, y: cy }
     setOppPos(oppPosRef.current)
   }
+
+  useEffect(() => {
+    const ws = new WebSocket('ws://127.0.0.1:2001')
+    wsRef.current = ws
+    ws.onopen = () => {
+      if (roomId) {
+        try { ws.send(JSON.stringify({ type: 'join_room', roomId, role })) } catch { }
+      }
+    }
+    ws.onmessage = (ev) => {
+      let msg: any
+      try { msg = JSON.parse(ev.data) } catch { return }
+      console.log('[game] ws message', msg)
+      if (msg.type === 'joined' && msg.roomId === roomId) {
+        joinedRef.current = true
+      }
+      if (msg.type === 'opponent_paddle') {
+        console.log('[game] opponent_paddle', msg)
+        if (msg.roomId && msg.roomId !== roomId) return
+        if (msg.role !== 'blue') return
+        const area = areaRef.current
+        if (!area) return
+        const rect = area.getBoundingClientRect()
+        const cx = rect.width / 2
+        const cy = rect.height / 2
+        const scBack = s(depth - 1)
+        const bw = rect.width * scBack
+        const bh = rect.height * scBack
+        const w = bw / 5
+        const h = (w * 2) / 3
+        const halfW = w / 2
+        const halfH = h / 2
+        const { minX, maxX, minY, maxY } = computeBounds(cx, cy, bw, bh, halfW, halfH)
+        const rx = Math.max(minX, Math.min(maxX, cx + (msg.nx || 0) * (maxX - cx)))
+        const ry = Math.max(minY, Math.min(maxY, cy + (msg.ny || 0) * (maxY - cy)))
+        oppPosRef.current = { x: rx, y: ry }
+        setOppPos(oppPosRef.current)
+      } else if (msg.type === 'ball_state' && role !== 'blue') {
+        ballXRef.current = msg.x
+        ballYRef.current = msg.y
+        ballDepthRef.current = msg.depth
+        velXRef.current = msg.vx
+        velYRef.current = msg.vy
+        setBallX(msg.x); setBallY(msg.y); setBallDepth(msg.depth)
+        setVelX(msg.vx); setVelY(msg.vy)
+      } else if (msg.type === 'peer_left') {
+        setIsMoving(false)
+      }
+    }
+    ws.onerror = (e) => { console.error('[game] ws error', e) }
+    ws.onclose = () => { wsRef.current = null; joinedRef.current = false }
+    return () => { try { ws.close() } catch { } }
+  }, [role, roomId])
 
   const getGeom = (rect: DOMRect, side: 'front' | 'back') => {
     const cx = rect.width / 2
@@ -169,143 +229,7 @@ export default function Game() {
         nvy = r.nvy
         if (r.bounced) playSound(wallBounceMp3, WALL_BOUNCE_VOLUME)
       }
-      {
-        const now = performance.now()
-        const scBackHist = s(depth - 1)
-        backHistoryRef.current.push({ ts: now, x: cx + nx * scBackHist, y: cy + ny * scBackHist, vx: nvx * scBackHist, vy: nvy * scBackHist })
-        if (backHistoryRef.current.length > 300) backHistoryRef.current.shift()
-        const canTrack = direction > 0 && (!botStartTsRef.current || now >= botStartTsRef.current)
-        const hasInertia = !canTrack && (oppKeepInertiaRef.current || (oppInertiaUntilRef.current && now < oppInertiaUntilRef.current))
-        if (canTrack || hasInertia) {
-          const scBack = s(depth - 1)
-          const w = opponentRef.current?.offsetWidth || (rect.width * scBack) / 5
-          const h = opponentRef.current?.offsetHeight || (w * 2) / 3
-          let vx: number
-          let vy: number
-          let delayedPos: { x: number; y: number } | null = null
-          if (canTrack) {
-            const mimic = p.ms > 500
-            const noiseX = mimic ? 0 : (Math.random() * 2 - 1) * p.nz
-            const noiseY = mimic ? 0 : (Math.random() * 2 - 1) * p.nz
-            const tx = cx + nx * scBack + noiseX
-            const ty = cy + ny * scBack + noiseY
-            const dx = tx - oppPosRef.current.x
-            const dy = ty - oppPosRef.current.y
-            const dist = Math.hypot(dx, dy)
-            const ux = dist > 0 ? dx / dist : 0
-            const uy = dist > 0 ? dy / dist : 0
-            const hasBurst = oppBurstUntilRef.current && now < oppBurstUntilRef.current
-            let velMatchX = nvx * scBack
-            let velMatchY = nvy * scBack
-            if (mimic) {
-              const threshold = now - (p.mimicDelayMs || 0)
-              let hx = backHistoryRef.current[backHistoryRef.current.length - 1]
-              for (let i = backHistoryRef.current.length - 1; i >= 0; i--) {
-                const it = backHistoryRef.current[i]
-                if (it.ts <= threshold) { hx = it; break }
-              }
-              velMatchX = hx ? hx.vx : velMatchX
-              velMatchY = hx ? hx.vy : velMatchY
-            }
-            let desiredVx: number
-            let desiredVy: number
-            if (mimic) {
-              desiredVx = velMatchX
-              desiredVy = velMatchY
-              if (hasBurst) {
-                desiredVx *= 1.15
-                desiredVy *= 1.15
-              }
-            } else {
-              desiredVx = ux * p.ms * (hasBurst ? 1.15 : 1)
-              desiredVy = uy * p.ms * (hasBurst ? 1.15 : 1)
-            }
-            const maxDv = p.ac * dt * (hasBurst ? 1.6 : 1)
-            const dvx = Math.max(-maxDv, Math.min(maxDv, desiredVx - oppVelRef.current.x))
-            const dvy = Math.max(-maxDv, Math.min(maxDv, desiredVy - oppVelRef.current.y))
-            vx = (oppVelRef.current.x + dvx) * p.damp
-            vy = (oppVelRef.current.y + dvy) * p.damp
-            if (mimic) {
-              const threshold = now - (p.mimicDelayMs || 0)
-              let hx2 = backHistoryRef.current[backHistoryRef.current.length - 1]
-              for (let i = backHistoryRef.current.length - 1; i >= 0; i--) {
-                const it = backHistoryRef.current[i]
-                if (it.ts <= threshold) { hx2 = it; break }
-              }
-
-              if (hx2) {
-                const scBack2 = s(depth - 1)
-                const tx2 = hx2.x
-                const ty2 = hx2.y
-                let ox2 = tx2
-                let oy2 = ty2
-                const w2 = opponentRef.current?.offsetWidth || (rect.width * scBack2) / 5
-                const h2 = opponentRef.current?.offsetHeight || (w2 * 2) / 3
-                const halfW2 = w2 / 2
-                const halfH2 = h2 / 2
-                const bw2 = rect.width * scBack2
-                const bh2 = rect.height * scBack2
-                const minX2 = cx - bw2 / 2 + halfW2
-                const maxX3 = cx + bw2 / 2 - halfW2
-                const minY2 = cy - bh2 / 2 + halfH2
-                const maxY3 = cy + bh2 / 2 - halfH2
-                ox2 = Math.max(minX2, Math.min(maxX3, ox2))
-                oy2 = Math.max(minY2, Math.min(maxY3, oy2))
-                delayedPos = { x: ox2, y: oy2 }
-              }
-            }
-          } else {
-            const { ux: sx, uy: sy } = unit(oppInertiaDirRef.current.x, oppInertiaDirRef.current.y)
-            const sp = p.ms * 0.95
-            vx = sx * sp
-            vy = sy * sp
-          }
-          const vLim = p.ms * ((oppBurstUntilRef.current && now < oppBurstUntilRef.current) ? 1.35 : 1)
-            ;[vx, vy] = limitMagnitude(vx, vy, vLim)
-          let ox = oppPosRef.current.x + vx * dt
-          let oy = oppPosRef.current.y + vy * dt
-          if (delayedPos) {
-            const alpha = (p.mimicDelayMs && p.mimicDelayMs > 0) ? Math.min(1, dt * 8) : 1
-            ox = lerp(ox, delayedPos.x, alpha)
-            oy = lerp(oy, delayedPos.y, alpha)
-          }
-          const halfW = w / 2
-          const halfH = h / 2
-          const bw = rect.width * scBack
-          const bh = rect.height * scBack
-          const { minX, maxX, minY, maxY } = computeBounds(cx, cy, bw, bh, halfW, halfH)
-          ox = clamp(ox, minX, maxX)
-          oy = clamp(oy, minY, maxY)
-          oppPosRef.current = { x: ox, y: oy }
-          oppVelRef.current = { x: vx, y: vy }
-          setOppPos(oppPosRef.current)
-        } else {
-          const scBack = s(depth - 1)
-          const w = opponentRef.current?.offsetWidth || (rect.width * scBack) / 5
-          const h = opponentRef.current?.offsetHeight || (w * 2) / 3
-          const tx2 = cx + nx * scBack
-          const ty2 = cy + ny * scBack
-          const dx2 = tx2 - oppPosRef.current.x
-          const dy2 = ty2 - oppPosRef.current.y
-          const { ux: udx, uy: udy } = unit(dx2, dy2)
-          let vx = udx * p.ms * 0.85
-          let vy = udy * p.ms * 0.85
-          const vLim = p.ms
-            ;[vx, vy] = limitMagnitude(vx, vy, vLim)
-          let ox = oppPosRef.current.x + vx * dt
-          let oy = oppPosRef.current.y + vy * dt
-          const bw = rect.width * scBack
-          const bh = rect.height * scBack
-          const halfW = w / 2
-          const halfH = h / 2
-          const { minX, maxX, minY, maxY } = computeBounds(cx, cy, bw, bh, halfW, halfH)
-          ox = clamp(ox, minX, maxX)
-          oy = clamp(oy, minY, maxY)
-          oppPosRef.current = { x: ox, y: oy }
-          oppVelRef.current = { x: vx, y: vy }
-          setOppPos(oppPosRef.current)
-        }
-      }
+      // bot logic removed for online mode; opponent paddle is controlled via WebSocket updates
       if (direction > 0 && nd >= depth - 1) {
         nd = depth - 1
         const g = getGeom(rect, 'back')
@@ -435,6 +359,11 @@ export default function Game() {
       velYRef.current = nvy
       setVelX(nvx)
       setVelY(nvy)
+      if (wsRef.current && roomId && role === 'blue') {
+        try {
+          wsRef.current.send(JSON.stringify({ type: 'ball', roomId, x: nx, y: ny, depth: nd, vx: nvx, vy: nvy }))
+        } catch { }
+      }
       ballDepthRef.current = nd
       ballXRef.current = nx
       ballYRef.current = ny
@@ -450,33 +379,7 @@ export default function Game() {
     }
   }, [isMoving, direction])
 
-  useEffect(() => {
-    const area = areaRef.current
-    if (!area) return
-    const params = ((lv: number) => {
-      const m = Math.min(10, Math.max(1, lv))
-      const table = [
-        { rt: 300 }, { rt: 240 }, { rt: 180 }, { rt: 140 }, { rt: 120 }, { rt: 100 }, { rt: 80 }, { rt: 60 }, { rt: 40 }, { rt: 0 }
-      ]
-      return table[m - 1]
-    })(level)
-    const ms = (() => {
-      const m = Math.max(1, level)
-      if (m <= LEVEL_CONFIGS.length) {
-        return LEVEL_CONFIGS[m - 1].botMaxSpeed
-      } else {
-        const extra = m - LEVEL_CONFIGS.length
-        const last = LEVEL_CONFIGS[LEVEL_CONFIGS.length - 1]
-        return Math.min(3200, last.botMaxSpeed + 120 * extra)
-      }
-    })()
-    if (direction > 0) {
-      const rtAdj = ms > 500 ? 0 : params.rt
-      botStartTsRef.current = performance.now() + rtAdj
-    } else {
-      botStartTsRef.current = 0
-    }
-  }, [direction, level])
+  // bot start timing removed
 
   useEffect(() => {
     if (redLives === 0) {
@@ -503,12 +406,55 @@ export default function Game() {
     const rect = area.getBoundingClientRect()
     const localX = e.clientX - rect.left
     const localY = e.clientY - rect.top
+    if (!wsRef.current) {
+      console.log('[game] creating ws on first move')
+      const ws = new WebSocket('ws://127.0.0.1:2001')
+      wsRef.current = ws
+      ws.onopen = () => {
+        if (roomId) {
+          try { ws.send(JSON.stringify({ type: 'join_room', roomId, role })) } catch { }
+        }
+      }
+      ws.onmessage = (ev) => {
+        let msg: any
+        try { msg = JSON.parse(ev.data) } catch { return }
+        console.log('[game] ws message', msg)
+        if (msg.type === 'joined' && msg.roomId === roomId) {
+          joinedRef.current = true
+        }
+        if (msg.type === 'opponent_paddle') {
+          console.log('[game] opponent_paddle', msg)
+          if (msg.roomId && msg.roomId !== roomId) return
+          if (msg.role !== 'blue') return
+          const cx = rect.width / 2
+          const cy = rect.height / 2
+          const scBack = s(depth - 1)
+          const bw = rect.width * scBack
+          const bh = rect.height * scBack
+          const w = bw / 5
+          const h = (w * 2) / 3
+          const halfW = w / 2
+          const halfH = h / 2
+          const { minX, maxX, minY, maxY } = computeBounds(cx, cy, bw, bh, halfW, halfH)
+          const rx = Math.max(minX, Math.min(maxX, cx + (msg.nx || 0) * (maxX - cx)))
+          const ry = Math.max(minY, Math.min(maxY, cy + (msg.ny || 0) * (maxY - cy)))
+          oppPosRef.current = { x: rx, y: ry }
+          setOppPos(oppPosRef.current)
+        }
+      }
+      ws.onerror = (err) => console.error('[game] ws error (on move create)', err)
+      ws.onclose = () => { wsRef.current = null; joinedRef.current = false }
+    }
     const pw = paddleRef.current?.offsetWidth || rect.width * 0.18
     const ph = paddleRef.current?.offsetHeight || rect.height * 0.12
     const halfW = pw / 2
     const halfH = ph / 2
-    const x = Math.max(halfW, Math.min(rect.width - halfW, localX))
-    const y = Math.max(halfH, Math.min(rect.height - halfH, localY))
+    const { minX, maxX, minY, maxY } = computeBounds(rect.width / 2, rect.height / 2, rect.width, rect.height, halfW, halfH)
+    const x = Math.max(minX, Math.min(maxX, localX))
+    const y = Math.max(minY, Math.min(maxY, localY))
+    const nx = (x - rect.width / 2) / (maxX - rect.width / 2)
+    const ny = (y - rect.height / 2) / (maxY - rect.height / 2)
+    console.log('[game] onPointerMove', { role, roomId, x, y, nx, ny })
     const prev = posRef.current
     setPos({ x, y })
     posRef.current = { x, y }
@@ -518,6 +464,19 @@ export default function Game() {
       paddleVelRef.current = { x: (x - prev.x) / dt, y: (y - prev.y) / dt }
     }
     lastTsRef.current = now
+    const wsConn = wsRef.current
+    const payload = { type: 'paddle', roomId, role: 'blue', nx, ny, x, y }
+    console.log('[game] prepare paddle', payload, 'wsState=', wsConn?.readyState, 'joined=', joinedRef.current)
+    if (!roomId) {
+      console.log('[game] skip send: empty roomId')
+    } else if (!wsConn) {
+      console.log('[game] skip send: no ws connection')
+    } else if (wsConn.readyState !== WebSocket.OPEN) {
+      console.log('[game] skip send: ws not open, state=', wsConn.readyState)
+    } else {
+      console.log('[game] send paddle', payload)
+      try { wsConn.send(JSON.stringify(payload)) } catch { }
+    }
   }
 
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -525,6 +484,7 @@ export default function Game() {
     if (isMoving) return
     if (missed) return
     if (gameOver) return
+    if (role !== 'blue') return
     const area = areaRef.current
     if (!area) return
     const rect = area.getBoundingClientRect()
@@ -629,35 +589,23 @@ export default function Game() {
           )}
           <DepthHighlight style={{ transform: `translate(-50%, -50%) scale(${s(ballDepth)})` }} />
           {!gameOver && (
-            <Ball $missed={missed} style={{ transform: `translate(calc(-50% + ${ballX * s(ballDepth)}px), calc(-50% + ${ballY * s(ballDepth)}px)) scale(${s(ballDepth)})` }} />
-          )}
-          {!gameOver && (
-            <PaddleOpponent ref={opponentRef} style={{ left: `${oppPos.x}px`, top: `${oppPos.y}px` }}>
-              {redHit === 'center' && <P2HitCenter />}
-              {redHit === 'bottom-left' && <P2HitBL />}
-              {redHit === 'bottom-right' && <P2HitBR />}
-              {redHit === 'top-left' && <P2HitTL />}
-              {redHit === 'top-right' && <P2HitTR />}
-              <P2Center />
-              <P2VTop />
-              <P2VBottom />
-              <P2HLeft />
-              <P2HRight />
-            </PaddleOpponent>
-          )}
-          {!gameOver && (
-            <Paddle ref={paddleRef} style={{ left: `${pos.x}px`, top: `${pos.y}px` }}>
-              {blueHit === 'center' && <PHitCenter />}
-              {blueHit === 'bottom-left' && <PHitBL />}
-              {blueHit === 'bottom-right' && <PHitBR />}
-              {blueHit === 'top-left' && <PHitTL />}
-              {blueHit === 'top-right' && <PHitTR />}
-              <PCenter />
-              <PVTop />
-              <PVBottom />
-              <PHLeft />
-              <PHRight />
-            </Paddle>
+            role === 'blue' ? (
+              <Paddle ref={paddleRef} style={{ left: `${pos.x}px`, top: `${pos.y}px` }}>
+                <PCenter />
+                <PVTop />
+                <PVBottom />
+                <PHLeft />
+                <PHRight />
+              </Paddle>
+            ) : (
+              <PaddleOpponentBlue ref={opponentRef} style={{ left: `${oppPos.x}px`, top: `${oppPos.y}px` }}>
+                <PCenter />
+                <PVTop />
+                <PVBottom />
+                <PHLeft />
+                <PHRight />
+              </PaddleOpponentBlue>
+            )
           )}
         </GameArea>
       </Orient>

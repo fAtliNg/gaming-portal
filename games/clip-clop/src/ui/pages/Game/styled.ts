@@ -263,6 +263,23 @@ export const PaddleOpponent = styled.div`
   z-index: 2;
 `
 
+export const PaddleOpponentBlue = styled.div`
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  --p2W: calc(var(--inner-w) / 5);
+  width: var(--p2W);
+  height: calc(var(--p2W) * 2 / 3);
+  background: ${({ theme }) => theme.colors.paddleBg};
+  border-radius: 18px;
+  border: 3px solid ${({ theme }) => theme.colors.paddleBorderBlue};
+  box-shadow: 0 0 0 2px ${({ theme }) => theme.colors.paddleBlueShadowInset} inset;
+  --pcw: 24%;
+  --pch: 28%;
+  z-index: 2;
+`
+
 export const P2Center = styled.div`
   position: absolute;
   left: 50%;

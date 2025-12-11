@@ -66,9 +66,28 @@ export const BtnLink = styled(Link)`
   cursor: pointer;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  width: clamp(170px, calc(var(--tunnel-w) * 0.28), 360px);
+  width: clamp(200px, calc(var(--tunnel-w) * 0.32), 420px);
   text-align: center;
   box-shadow: 0 6px 16px ${({ theme }) => theme.colors.btnShadow};
   &:active { transform: translateY(1px); }
 `
 
+export const Btn = styled.button`
+  appearance: none;
+  background: ${({ theme }) => theme.colors.btnBg};
+  color: ${({ theme }) => theme.colors.btnText};
+  border: none;
+  border-radius: 16px;
+  padding: clamp(7px, calc(var(--tunnel-w) * 0.01), 11px) clamp(8px, calc(var(--tunnel-w) * 0.012), 12px);
+  font-family: 'Orbitron', system-ui;
+  font-weight: 700;
+  font-size: clamp(12px, calc(var(--tunnel-w) * 0.028), 22px);
+  cursor: pointer;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  width: clamp(200px, calc(var(--tunnel-w) * 0.32), 420px);
+  text-align: center;
+  box-shadow: 0 6px 16px ${({ theme }) => theme.colors.btnShadow};
+  &:active { transform: translateY(1px); }
+  &:disabled { opacity: 0.6; cursor: default; }
+`
