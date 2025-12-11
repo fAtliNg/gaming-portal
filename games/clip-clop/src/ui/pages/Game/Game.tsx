@@ -35,7 +35,6 @@ export default function Game() {
   const [gameOver, setGameOver] = useState(false)
   const [end, setEnd] = useState<null | 'win' | 'lose'>(null)
   const [server, setServer] = useState<'blue' | 'red'>('blue')
-  const [score, setScore] = useState(0)
   const [oppPos, setOppPos] = useState({ x: 0, y: 0 })
   const oppPosRef = useRef({ x: 0, y: 0 })
   const oppVelRef = useRef({ x: 0, y: 0 })
@@ -436,7 +435,6 @@ export default function Game() {
           {
             const region = getHitRegion(hx, hy)
             setBlueHit(region)
-            setScore((prev) => prev + pointsForRegion(region))
           }
           if (blueHitTimerRef.current) window.clearTimeout(blueHitTimerRef.current)
           blueHitTimerRef.current = window.setTimeout(() => setBlueHit(null), HIT_OVERLAY_MS)
@@ -721,7 +719,6 @@ export default function Game() {
         {
           const region = getHitRegion(hx, hy)
           setBlueHit(region)
-          setScore((prev) => prev + pointsForRegion(region))
         }
         if (blueHitTimerRef.current) window.clearTimeout(blueHitTimerRef.current)
         blueHitTimerRef.current = window.setTimeout(() => setBlueHit(null), HIT_OVERLAY_MS)
@@ -764,7 +761,7 @@ export default function Game() {
           onPointerDown={onPointerDown}
         >
           <HudLeft>
-            <HudScore>score: {score}</HudScore>
+            <HudScore>Anonymous</HudScore>
             <HudLives>
               {Array.from({ length: Math.max(0, redLives - 1) }).map((_, i) => (
                 <LifeDot key={i} $variant="red" />
@@ -772,7 +769,7 @@ export default function Game() {
             </HudLives>
           </HudLeft>
           <HudRight>
-            <HudLevel>LEVEL: {level}</HudLevel>
+            <HudLevel>Anonymous</HudLevel>
             <HudLives>
               {Array.from({ length: Math.max(0, blueLives - 1) }).map((_, i) => (
                 <LifeDot key={i} $variant="blue" />

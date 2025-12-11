@@ -99,6 +99,24 @@
     "roomId": "5bi8gxmt",
     "blueLives": 3,
     "redLives": 0,
-    "finishedAt": 1765489524777
+    "finishedAt": 1765489869359
+  },
+  {
+    "roomId": "f0gzq6dc",
+    "blueLives": 3,
+    "redLives": 0,
+    "finishedAt": 1765490021987
+  },
+  {
+    "roomId": "1fn75ivd",
+    "blueLives": 0,
+    "redLives": 1,
+    "finishedAt": 1765490420300
+  },
+  {
+    "roomId": "rlgm0j78",
+    "blueLives": 0,
+    "redLives": 1,
+    "finishedAt": 1765490455571
   }
 ]
