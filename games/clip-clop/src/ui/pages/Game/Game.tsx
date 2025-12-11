@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import Arena from '../../components/Arena'
-import { Screen, Orient, FsControls, FsToggle, GameArea, HudLeft, HudRight, HudLevel, HudScore, HudLives, LifeDot, LevelOverlay, GameOverOverlay, DepthHighlight, Paddle, PaddleRed, PCenter, PVTop, PVBottom, PHLeft, PHRight, PaddleOpponent, PaddleOpponentBlue, P2Center, P2VTop, P2VBottom, P2HLeft, P2HRight } from './styled'
+import { Screen, Orient, FsControls, FsToggle, GameArea, HudLeft, HudRight, HudLevel, HudScore, HudLives, LifeDot, LevelOverlay, GameOverOverlay, DepthHighlight, Ball, Paddle, PaddleRed, PCenter, PVTop, PVBottom, PHLeft, PHRight, PaddleOpponent, PaddleOpponentBlue, P2Center, P2VTop, P2VBottom, P2HLeft, P2HRight } from './styled'
 import { useThemeMode } from '../../ThemeModeProvider'
 import IconFullscreenExit from '../../icons/IconFullscreenExit'
 import IconFullscreenEnter from '../../icons/IconFullscreenEnter'
@@ -457,6 +457,14 @@ export default function Game() {
           const ry = Math.max(minY, Math.min(maxY, cy + (msg.ny || 0) * (maxY - cy)))
           oppPosRef.current = { x: rx, y: ry }
           setOppPos(oppPosRef.current)
+        } else if (msg.type === 'ball_state') {
+          ballXRef.current = msg.x
+          ballYRef.current = msg.y
+          ballDepthRef.current = msg.depth
+          velXRef.current = msg.vx
+          velYRef.current = msg.vy
+          setBallX(msg.x); setBallY(msg.y); setBallDepth(msg.depth)
+          setVelX(msg.vx); setVelY(msg.vy)
         }
       }
       ws.onerror = (err) => console.error('[game] ws error (on move create)', err)
@@ -604,7 +612,13 @@ export default function Game() {
           {gameOver && (
             <GameOverOverlay>GAME OVER</GameOverOverlay>
           )}
-          <DepthHighlight style={{ transform: `translate(-50%, -50%) scale(${s(ballDepth)})` }} />
+          <DepthHighlight style={{ transform: `translate(-50%, -50%) scale(${s(role === 'red' ? depth - 1 - ballDepth : ballDepth)})` }} />
+          <Ball
+            $missed={missed}
+            style={{
+              transform: `translate(-50%, -50%) translate(${(role === 'red' ? -ballX : ballX) * s(role === 'red' ? depth - 1 - ballDepth : ballDepth)}px, ${ballY * s(role === 'red' ? depth - 1 - ballDepth : ballDepth)}px) scale(${s(role === 'red' ? depth - 1 - ballDepth : ballDepth)})`
+            }}
+          />
           {!gameOver && (
             <>
               {role === 'blue' ? (
