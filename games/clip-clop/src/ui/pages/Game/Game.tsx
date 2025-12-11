@@ -34,6 +34,7 @@ export default function Game() {
   const [blueLives, setBlueLives] = useState(5)
   const [gameOver, setGameOver] = useState(false)
   const [end, setEnd] = useState<null | 'win' | 'lose'>(null)
+  const [server, setServer] = useState<'blue' | 'red'>('blue')
   const [score, setScore] = useState(0)
   const [oppPos, setOppPos] = useState({ x: 0, y: 0 })
   const oppPosRef = useRef({ x: 0, y: 0 })
@@ -150,6 +151,36 @@ export default function Game() {
         velYRef.current = msg.vy
         setBallX(msg.x); setBallY(msg.y); setBallDepth(msg.depth)
         setVelX(msg.vx); setVelY(msg.vy)
+      } else if (msg.type === 'server') {
+        if (msg.server === 'blue' || msg.server === 'red') setServer(msg.server)
+      } else if (msg.type === 'serve') {
+        if (role === 'blue') {
+          const area = areaRef.current
+          if (!area) return
+          const rect = area.getBoundingClientRect()
+          const cx = rect.width / 2
+          const cy = rect.height / 2
+          const baseBall = computeBaseBall(rect.width)
+          const g = getGeom(rect, 'back')
+          const sc = s(g.di)
+          const r = (baseBall / 2) * sc
+          const bcx = cx + ballXRef.current * sc
+          const bcy = cy + ballYRef.current * sc
+          // simulate back hit by red
+          const hx = (bcx - g.x) / (g.w / 2)
+          const hy = (bcy - g.y) / (g.h / 2)
+          const p = getParams(level)
+          const { vx, vy } = responseBack(0, 0, hx, hy, g.pvx, g.pvy, BACK_HIT_K, BACK_VEL_K, p.bsX, p.bsY, p.ms)
+          velXRef.current = vx
+          velYRef.current = vy
+          setVelX(vx)
+          setVelY(vy)
+          setIsMoving(true)
+          setDirection(-1)
+          setRedHit(getHitRegion(hx, hy))
+          if (redHitTimerRef.current) window.clearTimeout(redHitTimerRef.current)
+          redHitTimerRef.current = window.setTimeout(() => setRedHit(null), HIT_OVERLAY_MS)
+        }
       } else if (msg.type === 'goal') {
         if (msg.side === 'red') {
           setRedBall(true)
@@ -354,22 +385,29 @@ export default function Game() {
             }
             return nl
           })
+          if (role === 'blue') {
+            setServer('red')
+            const wsConn = wsRef.current
+            if (wsConn && roomId && wsConn.readyState === WebSocket.OPEN) {
+              try { wsConn.send(JSON.stringify({ type: 'server', roomId, server: 'red' })) } catch { }
+            }
+          }
           if (missTimerRef.current) window.clearTimeout(missTimerRef.current)
           missTimerRef.current = window.setTimeout(() => {
             setMissed(false)
-            ballDepthRef.current = 0
+            ballDepthRef.current = depth - 1
             ballXRef.current = 0
             ballYRef.current = 0
             velXRef.current = 0
             velYRef.current = 0
-            setBallDepth(0)
+            setBallDepth(depth - 1)
             setBallX(0)
             setBallY(0)
             setVelX(0)
             setVelY(0)
             const wsConn = wsRef.current
             if (wsConn && roomId && role === 'blue' && wsConn.readyState === WebSocket.OPEN) {
-              try { wsConn.send(JSON.stringify({ type: 'ball', roomId, x: 0, y: 0, depth: 0, vx: 0, vy: 0 })) } catch { }
+              try { wsConn.send(JSON.stringify({ type: 'ball', roomId, x: 0, y: 0, depth: depth - 1, vx: 0, vy: 0 })) } catch { }
             }
           }, 1000)
         }
@@ -426,22 +464,29 @@ export default function Game() {
             }
             return nl
           })
+          if (role === 'blue') {
+            setServer('blue')
+            const wsConn = wsRef.current
+            if (wsConn && roomId && wsConn.readyState === WebSocket.OPEN) {
+              try { wsConn.send(JSON.stringify({ type: 'server', roomId, server: 'blue' })) } catch { }
+            }
+          }
           if (missTimerRef.current) window.clearTimeout(missTimerRef.current)
           missTimerRef.current = window.setTimeout(() => {
             setMissed(false)
-            ballDepthRef.current = depth - 1
+            ballDepthRef.current = 0
             ballXRef.current = 0
             ballYRef.current = 0
             velXRef.current = 0
             velYRef.current = 0
-            setBallDepth(depth - 1)
+            setBallDepth(0)
             setBallX(0)
             setBallY(0)
             setVelX(0)
             setVelY(0)
             const wsConn = wsRef.current
             if (wsConn && roomId && role === 'blue' && wsConn.readyState === WebSocket.OPEN) {
-              try { wsConn.send(JSON.stringify({ type: 'ball', roomId, x: 0, y: 0, depth: depth - 1, vx: 0, vy: 0 })) } catch { }
+              try { wsConn.send(JSON.stringify({ type: 'ball', roomId, x: 0, y: 0, depth: 0, vx: 0, vy: 0 })) } catch { }
             }
           }, 1000)
         }
@@ -553,6 +598,30 @@ export default function Game() {
           velYRef.current = msg.vy
           setBallX(msg.x); setBallY(msg.y); setBallDepth(msg.depth)
           setVelX(msg.vx); setVelY(msg.vy)
+        } else if (msg.type === 'server') {
+          if (msg.server === 'blue' || msg.server === 'red') setServer(msg.server)
+        } else if (msg.type === 'serve') {
+          if (role === 'blue') {
+            const cx = rect.width / 2
+            const cy = rect.height / 2
+            const g = getGeom(rect, 'back')
+            const sc = s(g.di)
+            const bcx = cx + ballXRef.current * sc
+            const bcy = cy + ballYRef.current * sc
+            const hx = (bcx - g.x) / (g.w / 2)
+            const hy = (bcy - g.y) / (g.h / 2)
+            const p = getParams(level)
+            const { vx, vy } = responseBack(0, 0, hx, hy, g.pvx, g.pvy, BACK_HIT_K, BACK_VEL_K, p.bsX, p.bsY, p.ms)
+            velXRef.current = vx
+            velYRef.current = vy
+            setVelX(vx)
+            setVelY(vy)
+            setIsMoving(true)
+            setDirection(-1)
+            setRedHit(getHitRegion(hx, hy))
+            if (redHitTimerRef.current) window.clearTimeout(redHitTimerRef.current)
+            redHitTimerRef.current = window.setTimeout(() => setRedHit(null), HIT_OVERLAY_MS)
+          }
         } else if (msg.type === 'goal') {
           if (msg.side === 'red') {
             setRedBall(true)
@@ -605,8 +674,9 @@ export default function Game() {
     if (e.button !== 0) return
     if (isMoving) return
     if (missed) return
+    if (redBall) return
     if (gameOver) return
-    if (role !== 'blue') return
+    if (role !== server) return
     const area = areaRef.current
     if (!area) return
     const rect = area.getBoundingClientRect()
@@ -614,50 +684,57 @@ export default function Game() {
     const cy = rect.height / 2
     const pw = paddleRef.current?.offsetWidth || rect.width * 0.18
     const ph = paddleRef.current?.offsetHeight || rect.height * 0.12
-    const baseBall = computeBaseBall(rect.width)
-    const r = baseBall / 2
-    const bcx = cx + ballX
-    const bcy = cy + ballY
-    const hit = intersectsCRR(bcx, bcy, r, pos.x, pos.y, pw, ph, 22)
-    if (hit) {
-      setIsMoving(true)
-      setDirection(1)
-      const hx = (bcx - pos.x) / (pw / 2)
-      const hy = (bcy - pos.y) / (ph / 2)
-      const kHit = FRONT_HIT_K
-      const kVel = FRONT_VEL_K
-      const m0 = Math.max(1, level)
-      let cfg0: { ballSpeedX: number; ballSpeedY: number; firstHitSpinScale: number }
-      if (m0 <= LEVEL_CONFIGS.length) {
-        const c = LEVEL_CONFIGS[m0 - 1]
-        cfg0 = { ballSpeedX: c.ballSpeedX, ballSpeedY: c.ballSpeedY, firstHitSpinScale: c.firstHitSpinScale }
-      } else {
-        const extra = m0 - LEVEL_CONFIGS.length
-        const last = LEVEL_CONFIGS[LEVEL_CONFIGS.length - 1]
-        cfg0 = {
-          ballSpeedX: Math.min(2.5, last.ballSpeedX + 0.04 * extra),
-          ballSpeedY: Math.min(2.5, last.ballSpeedY + 0.04 * extra),
-          firstHitSpinScale: last.firstHitSpinScale,
+    if (role === 'blue') {
+      const baseBall = computeBaseBall(rect.width)
+      const r = baseBall / 2
+      const bcx = cx + ballX
+      const bcy = cy + ballY
+      const hit = intersectsCRR(bcx, bcy, r, pos.x, pos.y, pw, ph, 22)
+      if (hit) {
+        setIsMoving(true)
+        setDirection(1)
+        const hx = (bcx - pos.x) / (pw / 2)
+        const hy = (bcy - pos.y) / (ph / 2)
+        const kHit = FRONT_HIT_K
+        const kVel = FRONT_VEL_K
+        const m0 = Math.max(1, level)
+        let cfg0: { ballSpeedX: number; ballSpeedY: number; firstHitSpinScale: number }
+        if (m0 <= LEVEL_CONFIGS.length) {
+          const c = LEVEL_CONFIGS[m0 - 1]
+          cfg0 = { ballSpeedX: c.ballSpeedX, ballSpeedY: c.ballSpeedY, firstHitSpinScale: c.firstHitSpinScale }
+        } else {
+          const extra = m0 - LEVEL_CONFIGS.length
+          const last = LEVEL_CONFIGS[LEVEL_CONFIGS.length - 1]
+          cfg0 = {
+            ballSpeedX: Math.min(2.5, last.ballSpeedX + 0.04 * extra),
+            ballSpeedY: Math.min(2.5, last.ballSpeedY + 0.04 * extra),
+            firstHitSpinScale: last.firstHitSpinScale,
+          }
+        }
+        const vx0 = hx * kHit + paddleVelRef.current.x * kVel
+        const vy0 = hy * kHit + paddleVelRef.current.y * kVel
+        setVelX(vx0 * cfg0.ballSpeedX)
+        setVelY(vy0 * cfg0.ballSpeedY)
+        velXRef.current = vx0 * cfg0.ballSpeedX
+        velYRef.current = vy0 * cfg0.ballSpeedY
+        playSound(blueHitMp3, BLUE_HIT_VOLUME)
+        {
+          const region = getHitRegion(hx, hy)
+          setBlueHit(region)
+          setScore((prev) => prev + pointsForRegion(region))
+        }
+        if (blueHitTimerRef.current) window.clearTimeout(blueHitTimerRef.current)
+        blueHitTimerRef.current = window.setTimeout(() => setBlueHit(null), HIT_OVERLAY_MS)
+        {
+          const scale = cfg0.firstHitSpinScale
+          const sVal = computeSpinFirstHit(hx, hy, paddleVelRef.current.x, paddleVelRef.current.y, scale)
+          spinRef.current = sVal
         }
       }
-      const vx0 = hx * kHit + paddleVelRef.current.x * kVel
-      const vy0 = hy * kHit + paddleVelRef.current.y * kVel
-      setVelX(vx0 * cfg0.ballSpeedX)
-      setVelY(vy0 * cfg0.ballSpeedY)
-      velXRef.current = vx0 * cfg0.ballSpeedX
-      velYRef.current = vy0 * cfg0.ballSpeedY
-      playSound(blueHitMp3, BLUE_HIT_VOLUME)
-      {
-        const region = getHitRegion(hx, hy)
-        setBlueHit(region)
-        setScore((prev) => prev + pointsForRegion(region))
-      }
-      if (blueHitTimerRef.current) window.clearTimeout(blueHitTimerRef.current)
-      blueHitTimerRef.current = window.setTimeout(() => setBlueHit(null), HIT_OVERLAY_MS)
-      {
-        const scale = cfg0.firstHitSpinScale
-        const sVal = computeSpinFirstHit(hx, hy, paddleVelRef.current.x, paddleVelRef.current.y, scale)
-        spinRef.current = sVal
+    } else {
+      const wsConn = wsRef.current
+      if (wsConn && roomId && wsConn.readyState === WebSocket.OPEN) {
+        try { wsConn.send(JSON.stringify({ type: 'serve', roomId })) } catch { }
       }
     }
   }

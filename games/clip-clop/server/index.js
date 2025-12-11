@@ -134,6 +134,18 @@ wss.on('connection', (ws) => {
     if (!rm) return
     const peer = ws === rm.a ? rm.b : rm.a
     if (peer && peer.readyState === 1) send(peer, { type: 'goal', side })
+  } else if (t === 'server') {
+    const { roomId, server } = msg
+    const rm = rooms.get(roomId)
+    if (!rm) return
+    const peer = ws === rm.a ? rm.b : rm.a
+    if (peer && peer.readyState === 1) send(peer, { type: 'server', server })
+  } else if (t === 'serve') {
+    const { roomId } = msg
+    const rm = rooms.get(roomId)
+    if (!rm) return
+    const peer = ws === rm.a ? rm.b : rm.a
+    if (peer && peer.readyState === 1) send(peer, { type: 'serve' })
   }
 })
   ws.on('close', () => {
