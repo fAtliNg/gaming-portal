@@ -1,0 +1,56 @@
+[
+  {
+    "roomId": "6wgwznuj",
+    "blueLives": 0,
+    "redLives": 3,
+    "finishedAt": 1765486418018
+  },
+  {
+    "roomId": "3jpl1nih",
+    "blueLives": 0,
+    "redLives": 3,
+    "finishedAt": 1765486422336
+  },
+  {
+    "roomId": "x3izh69r",
+    "blueLives": 4,
+    "redLives": 0,
+    "finishedAt": 1765486845707
+  },
+  {
+    "roomId": "wr6jowco",
+    "blueLives": 4,
+    "redLives": 0,
+    "finishedAt": 1765486850570
+  },
+  {
+    "roomId": "7i6k8jqw",
+    "blueLives": 4,
+    "redLives": 0,
+    "finishedAt": 1765487070530
+  },
+  {
+    "roomId": "kgeimc8p",
+    "blueLives": 4,
+    "redLives": 0,
+    "finishedAt": 1765487543309
+  },
+  {
+    "roomId": "iipp9uph",
+    "blueLives": 4,
+    "redLives": 0,
+    "finishedAt": 1765487546972
+  },
+  {
+    "roomId": "jgwk3orm",
+    "blueLives": 3,
+    "redLives": 0,
+    "finishedAt": 1765488163272
+  },
+  {
+    "roomId": "gp15cibp",
+    "blueLives": 3,
+    "redLives": 0,
+    "finishedAt": 1765488168470
+  }
+]

@@ -165,7 +165,7 @@ export const CollisionDebug = styled.div`
   z-index: 6;
 `
 
-export const Ball = styled.div<{ $missed?: boolean }>`
+export const Ball = styled.div<{ $missed?: boolean; $redBall?: boolean }>`
   position: absolute;
   left: 50%;
   top: 50%;
@@ -174,8 +174,8 @@ export const Ball = styled.div<{ $missed?: boolean }>`
   width: var(--ballD);
   height: var(--ballD);
   border-radius: 50%;
-  background: ${({ theme, $missed }) => ($missed ? theme.gradients.ballMiss : theme.gradients.ballGreen)};
-  box-shadow: ${({ theme, $missed }) => ($missed ? `0 0 24px ${theme.colors.ballShadowMiss}, inset 0 12px 18px ${theme.colors.ballInnerLightMiss}` : `0 0 24px ${theme.colors.ballShadowGood}, inset 0 12px 18px ${theme.colors.ballInnerLight}`)};
+  background: ${({ theme, $missed, $redBall }) => ($missed || $redBall ? theme.gradients.ballMiss : theme.gradients.ballGreen)};
+  box-shadow: ${({ theme, $missed, $redBall }) => ($missed || $redBall ? `0 0 24px ${theme.colors.ballShadowMiss}, inset 0 12px 18px ${theme.colors.ballInnerLightMiss}` : `0 0 24px ${theme.colors.ballShadowGood}, inset 0 12px 18px ${theme.colors.ballInnerLight}`)};
   z-index: 3;
 `
 

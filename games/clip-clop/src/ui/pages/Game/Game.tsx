@@ -28,11 +28,12 @@ import { useLocation } from 'react-router-dom'
 export default function Game() {
   const areaRef = useRef<HTMLDivElement | null>(null)
   const screenRef = useRef<HTMLDivElement | null>(null)
-  const [showLevel, setShowLevel] = useState(true)
+
   const [level, setLevel] = useState(1)
-  const [redLives, setRedLives] = useState(3)
+  const [redLives, setRedLives] = useState(5)
   const [blueLives, setBlueLives] = useState(5)
   const [gameOver, setGameOver] = useState(false)
+  const [end, setEnd] = useState<null | 'win' | 'lose'>(null)
   const [score, setScore] = useState(0)
   const [oppPos, setOppPos] = useState({ x: 0, y: 0 })
   const oppPosRef = useRef({ x: 0, y: 0 })
@@ -60,6 +61,8 @@ export default function Game() {
   const [redHit, setRedHit] = useState<null | 'bottom-left' | 'bottom-right' | 'top-left' | 'top-right' | 'center'>(null)
   const blueHitTimerRef = useRef<number | null>(null)
   const redHitTimerRef = useRef<number | null>(null)
+  const [redBall, setRedBall] = useState(false)
+  const redBallTimerRef = useRef<number | null>(null)
   const oppInertiaUntilRef = useRef<number>(0)
   const oppBurstUntilRef = useRef<number>(0)
   const oppKeepInertiaRef = useRef(false)
@@ -78,6 +81,7 @@ export default function Game() {
   const wsRef = useRef<WebSocket | null>(null)
   const joinedRef = useRef(false)
   const loc = useLocation()
+  const oppInitCenteredRef = useRef(false)
   const params = new URLSearchParams(loc.search)
   const roomId = params.get('room') || ''
   const role = (params.get('role') || 'blue') as 'blue' | 'red'
@@ -101,12 +105,12 @@ export default function Game() {
     ws.onmessage = (ev) => {
       let msg: any
       try { msg = JSON.parse(ev.data) } catch { return }
-      console.log('[game] ws message', msg)
+
       if (msg.type === 'joined' && msg.roomId === roomId) {
         joinedRef.current = true
       }
       if (msg.type === 'opponent_paddle') {
-        console.log('[game] opponent_paddle', msg)
+
         if (msg.roomId && msg.roomId !== roomId) return
         if (msg.role === role) return
         const area = areaRef.current
@@ -146,11 +150,20 @@ export default function Game() {
         velYRef.current = msg.vy
         setBallX(msg.x); setBallY(msg.y); setBallDepth(msg.depth)
         setVelX(msg.vx); setVelY(msg.vy)
+      } else if (msg.type === 'goal') {
+        if (msg.side === 'red') {
+          setRedBall(true)
+          if (redBallTimerRef.current) window.clearTimeout(redBallTimerRef.current)
+          redBallTimerRef.current = window.setTimeout(() => setRedBall(false), 1000)
+        }
+      } else if (msg.type === 'lives') {
+        if (typeof msg.blueLives === 'number') setBlueLives(msg.blueLives)
+        if (typeof msg.redLives === 'number') setRedLives(msg.redLives)
       } else if (msg.type === 'peer_left') {
         setIsMoving(false)
       }
     }
-    ws.onerror = (e) => { console.error('[game] ws error', e) }
+    ws.onerror = () => { }
     ws.onclose = () => { wsRef.current = null; joinedRef.current = false }
     return () => { try { ws.close() } catch { } }
   }, [role, roomId])
@@ -177,11 +190,7 @@ export default function Game() {
 
 
 
-  useEffect(() => {
-    setShowLevel(true)
-    const timer = setTimeout(() => setShowLevel(false), LEVEL_OVERLAY_MS)
-    return () => clearTimeout(timer)
-  }, [level])
+
 
   useEffect(() => {
     const onChange = () => setIsFullscreen(!!document.fullscreenElement)
@@ -190,14 +199,53 @@ export default function Game() {
   }, [])
 
   useEffect(() => {
+    if (!roomId) return
+    const load = async () => {
+      try {
+        const resp = await fetch(`http://127.0.0.1:2001/api/game/${roomId}`)
+        if (!resp.ok) return
+        const data = await resp.json()
+        if (typeof data?.blueLives === 'number' && typeof data?.redLives === 'number') {
+          setBlueLives(data.blueLives)
+          setRedLives(data.redLives)
+          const endOut = data.redLives <= 0 ? (role === 'blue' ? 'win' : 'lose') : data.blueLives <= 0 ? (role === 'red' ? 'win' : 'lose') : null
+          if (endOut) setEnd(endOut)
+          setGameOver(true)
+        }
+      } catch { }
+    }
+    load()
+  }, [roomId, role])
+
+  useEffect(() => {
+    if (!gameOver) return
+    if (!roomId) return
+    const save = async () => {
+      try {
+        await fetch('http://127.0.0.1:2001/api/game/finish', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ roomId, blueLives, redLives })
+        })
+      } catch { }
+    }
+    save()
+  }, [gameOver, roomId, blueLives, redLives])
+
+  useEffect(() => {
     const area = areaRef.current
     if (!area) return
     const setCenter = () => {
       const rect = area.getBoundingClientRect()
       setPos({ x: rect.width / 2, y: rect.height / 2 })
       posRef.current = { x: rect.width / 2, y: rect.height / 2 }
-      setOppPos({ x: rect.width / 2, y: rect.height / 2 })
-      oppPosRef.current = { x: rect.width / 2, y: rect.height / 2 }
+      if (!oppInitCenteredRef.current && role === 'blue') {
+        const cx = rect.width / 2
+        const cy = rect.height / 2
+        oppPosRef.current = { x: cx, y: cy }
+        setOppPos(oppPosRef.current)
+        oppInitCenteredRef.current = true
+      }
     }
     requestAnimationFrame(setCenter)
   }, [])
@@ -291,11 +339,23 @@ export default function Game() {
           setMissed(true)
           playSound(missMp3, MISS_VOLUME)
           oppKeepInertiaRef.current = false
+          setRedBall(true)
+          if (redBallTimerRef.current) window.clearTimeout(redBallTimerRef.current)
+          redBallTimerRef.current = window.setTimeout(() => setRedBall(false), 1000)
+          if (wsRef.current && roomId && role === 'blue') {
+            try { wsRef.current.send(JSON.stringify({ type: 'goal', roomId, side: 'red' })) } catch { }
+          }
 
-          setRedLives((l) => Math.max(l - 1, 0))
+          setRedLives((l) => {
+            const nl = Math.max(l - 1, 0)
+            const wsConn = wsRef.current
+            if (wsConn && roomId && role === 'blue' && wsConn.readyState === WebSocket.OPEN) {
+              try { wsConn.send(JSON.stringify({ type: 'lives', roomId, blueLives, redLives: nl })) } catch { }
+            }
+            return nl
+          })
           if (missTimerRef.current) window.clearTimeout(missTimerRef.current)
           missTimerRef.current = window.setTimeout(() => {
-            centerOpponent(rect)
             setMissed(false)
             ballDepthRef.current = 0
             ballXRef.current = 0
@@ -307,7 +367,11 @@ export default function Game() {
             setBallY(0)
             setVelX(0)
             setVelY(0)
-          }, MISS_RESET_DELAY_MS)
+            const wsConn = wsRef.current
+            if (wsConn && roomId && role === 'blue' && wsConn.readyState === WebSocket.OPEN) {
+              try { wsConn.send(JSON.stringify({ type: 'ball', roomId, x: 0, y: 0, depth: 0, vx: 0, vy: 0 })) } catch { }
+            }
+          }, 1000)
         }
       }
       if (direction < 0 && nd <= 0) {
@@ -348,23 +412,38 @@ export default function Game() {
           setDirection(0)
           setMissed(true)
           playSound(missMp3, MISS_VOLUME)
-          centerOpponent(rect)
-
-          setBlueLives((l) => Math.max(l - 1, 0))
+          setRedBall(true)
+          if (redBallTimerRef.current) window.clearTimeout(redBallTimerRef.current)
+          redBallTimerRef.current = window.setTimeout(() => setRedBall(false), 1000)
+          if (wsRef.current && roomId && role === 'blue') {
+            try { wsRef.current.send(JSON.stringify({ type: 'goal', roomId, side: 'red' })) } catch { }
+          }
+          setBlueLives((l) => {
+            const nl = Math.max(l - 1, 0)
+            const wsConn = wsRef.current
+            if (wsConn && roomId && role === 'blue' && wsConn.readyState === WebSocket.OPEN) {
+              try { wsConn.send(JSON.stringify({ type: 'lives', roomId, blueLives: nl, redLives })) } catch { }
+            }
+            return nl
+          })
           if (missTimerRef.current) window.clearTimeout(missTimerRef.current)
           missTimerRef.current = window.setTimeout(() => {
             setMissed(false)
-            ballDepthRef.current = 0
+            ballDepthRef.current = depth - 1
             ballXRef.current = 0
             ballYRef.current = 0
             velXRef.current = 0
             velYRef.current = 0
-            setBallDepth(0)
+            setBallDepth(depth - 1)
             setBallX(0)
             setBallY(0)
             setVelX(0)
             setVelY(0)
-          }, MISS_RESET_DELAY_MS)
+            const wsConn = wsRef.current
+            if (wsConn && roomId && role === 'blue' && wsConn.readyState === WebSocket.OPEN) {
+              try { wsConn.send(JSON.stringify({ type: 'ball', roomId, x: 0, y: 0, depth: depth - 1, vx: 0, vy: 0 })) } catch { }
+            }
+          }, 1000)
         }
       }
       velXRef.current = nvx
@@ -393,15 +472,11 @@ export default function Game() {
 
   // bot start timing removed
 
-  useEffect(() => {
-    if (redLives === 0) {
-      setLevel((lv) => lv + 1)
-      setRedLives(3)
-    }
-  }, [redLives])
+
 
   useEffect(() => {
     if (blueLives === 0) {
+      setEnd(role === 'blue' ? 'lose' : 'win')
       if (gameOverTimerRef.current) window.clearTimeout(gameOverTimerRef.current)
       gameOverTimerRef.current = window.setTimeout(() => setGameOver(true), 1000)
     } else {
@@ -412,6 +487,19 @@ export default function Game() {
     }
   }, [blueLives])
 
+  useEffect(() => {
+    if (redLives === 0) {
+      setEnd(role === 'red' ? 'lose' : 'win')
+      if (gameOverTimerRef.current) window.clearTimeout(gameOverTimerRef.current)
+      gameOverTimerRef.current = window.setTimeout(() => setGameOver(true), 1000)
+    } else {
+      if (gameOverTimerRef.current) {
+        window.clearTimeout(gameOverTimerRef.current)
+        gameOverTimerRef.current = null
+      }
+    }
+  }, [redLives])
+
   const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     const area = areaRef.current
     if (!area) return
@@ -419,7 +507,7 @@ export default function Game() {
     const localX = e.clientX - rect.left
     const localY = e.clientY - rect.top
     if (!wsRef.current) {
-      console.log('[game] creating ws on first move')
+
       const ws = new WebSocket('ws://127.0.0.1:2001')
       wsRef.current = ws
       ws.onopen = () => {
@@ -430,12 +518,12 @@ export default function Game() {
       ws.onmessage = (ev) => {
         let msg: any
         try { msg = JSON.parse(ev.data) } catch { return }
-        console.log('[game] ws message', msg)
+
         if (msg.type === 'joined' && msg.roomId === roomId) {
           joinedRef.current = true
         }
         if (msg.type === 'opponent_paddle') {
-          console.log('[game] opponent_paddle', msg)
+
           if (msg.roomId && msg.roomId !== roomId) return
           if (msg.role === role) return
           const cx = rect.width / 2
@@ -465,9 +553,18 @@ export default function Game() {
           velYRef.current = msg.vy
           setBallX(msg.x); setBallY(msg.y); setBallDepth(msg.depth)
           setVelX(msg.vx); setVelY(msg.vy)
+        } else if (msg.type === 'goal') {
+          if (msg.side === 'red') {
+            setRedBall(true)
+            if (redBallTimerRef.current) window.clearTimeout(redBallTimerRef.current)
+            redBallTimerRef.current = window.setTimeout(() => setRedBall(false), 1000)
+          }
+        } else if (msg.type === 'lives') {
+          if (typeof msg.blueLives === 'number') setBlueLives(msg.blueLives)
+          if (typeof msg.redLives === 'number') setRedLives(msg.redLives)
         }
       }
-      ws.onerror = (err) => console.error('[game] ws error (on move create)', err)
+      ws.onerror = () => { }
       ws.onclose = () => { wsRef.current = null; joinedRef.current = false }
     }
     const pw = paddleRef.current?.offsetWidth || rect.width * 0.18
@@ -479,7 +576,7 @@ export default function Game() {
     const y = Math.max(minY, Math.min(maxY, localY))
     const nx = (x - rect.width / 2) / (maxX - rect.width / 2)
     const ny = (y - rect.height / 2) / (maxY - rect.height / 2)
-    console.log('[game] onPointerMove', { role, roomId, x, y, nx, ny })
+
     const prev = posRef.current
     setPos({ x, y })
     posRef.current = { x, y }
@@ -491,15 +588,15 @@ export default function Game() {
     lastTsRef.current = now
     const wsConn = wsRef.current
     const payload = { type: 'paddle', roomId, role, nx, ny, x, y }
-    console.log('[game] prepare paddle', payload, 'wsState=', wsConn?.readyState, 'joined=', joinedRef.current)
+
     if (!roomId) {
-      console.log('[game] skip send: empty roomId')
+
     } else if (!wsConn) {
-      console.log('[game] skip send: no ws connection')
+
     } else if (wsConn.readyState !== WebSocket.OPEN) {
-      console.log('[game] skip send: ws not open, state=', wsConn.readyState)
+
     } else {
-      console.log('[game] send paddle', payload)
+
       try { wsConn.send(JSON.stringify(payload)) } catch { }
     }
   }
@@ -523,7 +620,6 @@ export default function Game() {
     const bcy = cy + ballY
     const hit = intersectsCRR(bcx, bcy, r, pos.x, pos.y, pw, ph, 22)
     if (hit) {
-      centerOpponent(rect)
       setIsMoving(true)
       setDirection(1)
       const hx = (bcx - pos.x) / (pw / 2)
@@ -606,15 +702,14 @@ export default function Game() {
               ))}
             </HudLives>
           </HudRight>
-          {showLevel && (
-            <LevelOverlay>LEVEL {level}</LevelOverlay>
-          )}
-          {gameOver && (
-            <GameOverOverlay>GAME OVER</GameOverOverlay>
+
+          {gameOver && end && (
+            <GameOverOverlay>{end === 'win' ? 'You Win' : 'You Lose'}</GameOverOverlay>
           )}
           <DepthHighlight style={{ transform: `translate(-50%, -50%) scale(${s(role === 'red' ? depth - 1 - ballDepth : ballDepth)})` }} />
           <Ball
             $missed={missed}
+            $redBall={redBall}
             style={{
               transform: `translate(-50%, -50%) translate(${(role === 'red' ? -ballX : ballX) * s(role === 'red' ? depth - 1 - ballDepth : ballDepth)}px, ${ballY * s(role === 'red' ? depth - 1 - ballDepth : ballDepth)}px) scale(${s(role === 'red' ? depth - 1 - ballDepth : ballDepth)})`
             }}

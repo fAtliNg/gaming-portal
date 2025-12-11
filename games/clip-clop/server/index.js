@@ -1,6 +1,8 @@
 import express from 'express'
 import cors from 'cors'
 import { WebSocketServer } from 'ws'
+import fs from 'fs'
+import path from 'path'
 
 const app = express()
 app.use(express.json())
@@ -10,10 +12,45 @@ app.get('/api/top', (_req, res) => {
   res.json({ items: [] })
 })
 
-const port = 2001
-const server = app.listen(port, () => {
-  console.log(`Clip-clop backend on http://localhost:${port}`)
+// simple JSON DB for finished games
+const DB_FILE = path.join(process.cwd(), 'games', 'clip-clop', 'server', 'games-db.json')
+let gamesDb = new Map()
+try {
+  const raw = fs.readFileSync(DB_FILE, 'utf8')
+  const arr = JSON.parse(raw)
+  if (Array.isArray(arr)) {
+    gamesDb = new Map(arr.map((g) => [g.roomId, g]))
+  }
+} catch {}
+function persistDb() {
+  try {
+    const arr = Array.from(gamesDb.values())
+    fs.mkdirSync(path.dirname(DB_FILE), { recursive: true })
+    fs.writeFileSync(DB_FILE, JSON.stringify(arr, null, 2))
+  } catch {}
+}
+
+app.get('/api/game/:roomId', (req, res) => {
+  const roomId = req.params.roomId
+  const g = gamesDb.get(roomId)
+  if (!g) return res.status(404).json({ error: 'not_found' })
+  return res.json(g)
 })
+
+app.post('/api/game/finish', (req, res) => {
+  const { roomId, blueLives, redLives } = req.body || {}
+  if (!roomId || typeof blueLives !== 'number' || typeof redLives !== 'number') {
+    return res.status(400).json({ error: 'bad_request' })
+  }
+  const finishedAt = Date.now()
+  const rec = { roomId, blueLives, redLives, finishedAt }
+  gamesDb.set(roomId, rec)
+  persistDb()
+  return res.json({ ok: true })
+})
+
+const port = 2001
+const server = app.listen(port, () => {})
 
 const wss = new WebSocketServer({ server })
 
@@ -28,7 +65,6 @@ function send(ws, msg) {
 }
 
 wss.on('connection', (ws) => {
-  console.log('[ws] connection opened')
   ws.on('message', (data) => {
     let msg
     try { msg = JSON.parse(data.toString()) } catch { return }
@@ -42,12 +78,12 @@ wss.on('connection', (ws) => {
       ws.roomId = roomId
       ws.role = role
       send(ws, { type: 'joined', roomId, role })
-      console.log(`[ws] join_room room=${roomId} role=${role}`)
+      
       return
     }
     if (t === 'find_game') {
       send(ws, { type: 'queued' })
-      console.log('[ws] find_game received')
+      
       // prevent duplicate entries for the same socket
       if (!waiting.includes(ws)) {
         waiting.push(ws)
@@ -65,31 +101,42 @@ wss.on('connection', (ws) => {
           rooms.set(roomId, { a: null, b: null })
           send(a, { type: 'match_found', roomId, role: 'blue' })
           send(b, { type: 'match_found', roomId, role: 'red' })
-          console.log(`[ws] match_found room=${roomId}`)
+          
         }
       }
-    } else if (t === 'paddle') {
+  } else if (t === 'paddle') {
       const { roomId, nx, ny, x, y, role } = msg
       const rm = rooms.get(roomId)
       if (!rm) {
-        console.log(`[ws] paddle ignored: unknown roomId=${roomId}`)
         return
       }
       const targets = [rm.a, rm.b].filter((c) => c && c !== ws && c.readyState === 1)
-      console.log(`[ws] paddle from role=${role} room=${roomId} nx=${nx} ny=${ny}`)
+      
       for (const target of targets) {
         send(target, { type: 'opponent_paddle', roomId, role, nx: -nx, ny, x, y })
       }
-    } else if (t === 'ball') {
-      const { roomId, x, y, depth, vx, vy } = msg
-      const rm = rooms.get(roomId)
-      if (!rm) return
-      const peer = ws === rm.a ? rm.b : rm.a
-      if (peer && peer.readyState === 1) send(peer, { type: 'ball_state', x, y, depth, vx, vy })
-    }
-  })
+  } else if (t === 'ball') {
+    const { roomId, x, y, depth, vx, vy } = msg
+    const rm = rooms.get(roomId)
+    if (!rm) return
+    const peer = ws === rm.a ? rm.b : rm.a
+    if (peer && peer.readyState === 1) send(peer, { type: 'ball_state', x, y, depth, vx, vy })
+    return
+  } else if (t === 'lives') {
+    const { roomId, blueLives, redLives } = msg
+    const rm = rooms.get(roomId)
+    if (!rm) return
+    const peer = ws === rm.a ? rm.b : rm.a
+    if (peer && peer.readyState === 1) send(peer, { type: 'lives', blueLives, redLives })
+  } else if (t === 'goal') {
+    const { roomId, side } = msg
+    const rm = rooms.get(roomId)
+    if (!rm) return
+    const peer = ws === rm.a ? rm.b : rm.a
+    if (peer && peer.readyState === 1) send(peer, { type: 'goal', side })
+  }
+})
   ws.on('close', () => {
-    console.log('[ws] connection closed')
     // remove from waiting
     const i = waiting.indexOf(ws)
     if (i >= 0) waiting.splice(i, 1)
@@ -99,7 +146,7 @@ wss.on('connection', (ws) => {
         rooms.delete(roomId)
         const peer = rm.a === ws ? rm.b : rm.a
         if (peer && peer.readyState === 1) send(peer, { type: 'peer_left' })
-        console.log(`[ws] room ${roomId} torn down`)
+        
       }
     }
   })
