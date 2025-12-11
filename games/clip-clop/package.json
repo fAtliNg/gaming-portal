@@ -1,0 +1,25 @@
+{
+  "name": "clip-clop",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --port 2008 --strictPort",
+    "server": "node server/index.js",
+    "build": "vite build --base /clip-clop",
+    "postbuild": "mkdir -p dist/game dist/high-scores && cp dist/index.html dist/game/index.html && cp dist/index.html dist/high-scores/index.html"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.30.2",
+    "styled-components": "^6.1.19"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.2.0",
+    "typescript": "^5.4.5",
+    "vite": "^4.5.3"
+  }
+}
