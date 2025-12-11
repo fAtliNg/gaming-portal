@@ -94,6 +94,9 @@ export default function Arena({ lineColor, ballColor, background, showBall = tru
         return `rgb(${Math.round(r * k)}, ${Math.round(g * k)}, ${Math.round(b * k)})`
       }
       ctx.lineWidth = 2
+      if (host) {
+        host.style.setProperty('--grid-line-w', `${ctx.lineWidth}px`)
+      }
       for (let i = 0; i < depth; i++) {
         const rw = baseW * s(i)
         const rh = baseH * s(i)

@@ -112,15 +112,27 @@ export default function Game() {
         const area = areaRef.current
         if (!area) return
         const rect = area.getBoundingClientRect()
+        const aspect = 1.55
+        let baseW = Math.min(rect.width * 0.92, rect.height * aspect)
+        let baseH = baseW / aspect
+        if (baseH > rect.height * 0.86) {
+          baseH = rect.height * 0.86
+          baseW = baseH * aspect
+        }
         const cx = rect.width / 2
         const cy = rect.height / 2
         const scBack = s(depth - 1)
-        const bw = rect.width * scBack
-        const bh = rect.height * scBack
+        const bw = baseW * scBack
+        const bh = baseH * scBack
         const w = bw / 5
         const h = (w * 2) / 3
-        const halfW = w / 2
-        const halfH = h / 2
+        const style = opponentRef.current ? getComputedStyle(opponentRef.current) : null
+        const bdw = style ? parseFloat(style.borderWidth || '3') : 3
+        const areaStyle = getComputedStyle(area)
+        const gridW = parseFloat((areaStyle.getPropertyValue('--grid-line-w') || '2').replace('px', '')) || 2
+        const edgePad = Math.max(0, Math.round(gridW * 1.3 + bdw * 0.4) - 1)
+        const halfW = w / 2 + edgePad
+        const halfH = h / 2 + edgePad
         const { minX, maxX, minY, maxY } = computeBounds(cx, cy, bw, bh, halfW, halfH)
         const rx = Math.max(minX, Math.min(maxX, cx + (msg.nx || 0) * (maxX - cx)))
         const ry = Math.max(minY, Math.min(maxY, cy + (msg.ny || 0) * (maxY - cy)))
@@ -433,8 +445,13 @@ export default function Game() {
           const bh = rect.height * scBack
           const w = bw / 5
           const h = (w * 2) / 3
-          const halfW = w / 2
-          const halfH = h / 2
+          const areaStyle = getComputedStyle(area)
+          const gridW = parseFloat((areaStyle.getPropertyValue('--grid-line-w') || '2').replace('px', '')) || 2
+          const style2 = opponentRef.current ? getComputedStyle(opponentRef.current) : null
+          const bdw2 = style2 ? parseFloat(style2.borderWidth || '3') : 3
+          const edgePad2 = Math.max(0, Math.round(gridW * 1.3 + bdw2 * 0.4) - 1)
+          const halfW = w / 2 + edgePad2
+          const halfH = h / 2 + edgePad2
           const { minX, maxX, minY, maxY } = computeBounds(cx, cy, bw, bh, halfW, halfH)
           const rx = Math.max(minX, Math.min(maxX, cx + (msg.nx || 0) * (maxX - cx)))
           const ry = Math.max(minY, Math.min(maxY, cy + (msg.ny || 0) * (maxY - cy)))
