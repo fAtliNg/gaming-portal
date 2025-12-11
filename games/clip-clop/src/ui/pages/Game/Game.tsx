@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import Arena from '../../components/Arena'
-import { Screen, Orient, FsControls, FsToggle, GameArea, HudLeft, HudRight, HudLevel, HudScore, HudLives, LifeDot, LevelOverlay, GameOverOverlay, DepthHighlight, Paddle, PCenter, PVTop, PVBottom, PHLeft, PHRight, PaddleOpponentBlue } from './styled'
+import { Screen, Orient, FsControls, FsToggle, GameArea, HudLeft, HudRight, HudLevel, HudScore, HudLives, LifeDot, LevelOverlay, GameOverOverlay, DepthHighlight, Paddle, PaddleRed, PCenter, PVTop, PVBottom, PHLeft, PHRight, PaddleOpponent, PaddleOpponentBlue, P2Center, P2VTop, P2VBottom, P2HLeft, P2HRight } from './styled'
 import { useThemeMode } from '../../ThemeModeProvider'
 import IconFullscreenExit from '../../icons/IconFullscreenExit'
 import IconFullscreenEnter from '../../icons/IconFullscreenEnter'
@@ -108,7 +108,7 @@ export default function Game() {
       if (msg.type === 'opponent_paddle') {
         console.log('[game] opponent_paddle', msg)
         if (msg.roomId && msg.roomId !== roomId) return
-        if (msg.role !== 'blue') return
+        if (msg.role === role) return
         const area = areaRef.current
         if (!area) return
         const rect = area.getBoundingClientRect()
@@ -437,7 +437,7 @@ export default function Game() {
         if (msg.type === 'opponent_paddle') {
           console.log('[game] opponent_paddle', msg)
           if (msg.roomId && msg.roomId !== roomId) return
-          if (msg.role !== 'blue') return
+          if (msg.role === role) return
           const cx = rect.width / 2
           const cy = rect.height / 2
           const scBack = s(depth - 1)
@@ -482,7 +482,7 @@ export default function Game() {
     }
     lastTsRef.current = now
     const wsConn = wsRef.current
-    const payload = { type: 'paddle', roomId, role: 'blue', nx, ny, x, y }
+    const payload = { type: 'paddle', roomId, role, nx, ny, x, y }
     console.log('[game] prepare paddle', payload, 'wsState=', wsConn?.readyState, 'joined=', joinedRef.current)
     if (!roomId) {
       console.log('[game] skip send: empty roomId')
@@ -606,23 +606,42 @@ export default function Game() {
           )}
           <DepthHighlight style={{ transform: `translate(-50%, -50%) scale(${s(ballDepth)})` }} />
           {!gameOver && (
-            role === 'blue' ? (
-              <Paddle ref={paddleRef} style={{ left: `${pos.x}px`, top: `${pos.y}px` }}>
-                <PCenter />
-                <PVTop />
-                <PVBottom />
-                <PHLeft />
-                <PHRight />
-              </Paddle>
-            ) : (
-              <PaddleOpponentBlue ref={opponentRef} style={{ left: `${oppPos.x}px`, top: `${oppPos.y}px` }}>
-                <PCenter />
-                <PVTop />
-                <PVBottom />
-                <PHLeft />
-                <PHRight />
-              </PaddleOpponentBlue>
-            )
+            <>
+              {role === 'blue' ? (
+                <Paddle ref={paddleRef} style={{ left: `${pos.x}px`, top: `${pos.y}px` }}>
+                  <PCenter />
+                  <PVTop />
+                  <PVBottom />
+                  <PHLeft />
+                  <PHRight />
+                </Paddle>
+              ) : (
+                <PaddleRed ref={paddleRef} style={{ left: `${pos.x}px`, top: `${pos.y}px` }}>
+                  <P2Center />
+                  <P2VTop />
+                  <P2VBottom />
+                  <P2HLeft />
+                  <P2HRight />
+                </PaddleRed>
+              )}
+              {role === 'blue' ? (
+                <PaddleOpponent ref={opponentRef} style={{ left: `${oppPos.x}px`, top: `${oppPos.y}px` }}>
+                  <P2Center />
+                  <P2VTop />
+                  <P2VBottom />
+                  <P2HLeft />
+                  <P2HRight />
+                </PaddleOpponent>
+              ) : (
+                <PaddleOpponentBlue ref={opponentRef} style={{ left: `${oppPos.x}px`, top: `${oppPos.y}px` }}>
+                  <PCenter />
+                  <PVTop />
+                  <PVBottom />
+                  <PHLeft />
+                  <PHRight />
+                </PaddleOpponentBlue>
+              )}
+            </>
           )}
         </GameArea>
       </Orient>

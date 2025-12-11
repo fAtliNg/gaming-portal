@@ -194,6 +194,21 @@ export const Paddle = styled.div`
   z-index: 4;
 `
 
+export const PaddleRed = styled.div`
+  position: absolute;
+  transform: translate(-50%, -50%);
+  --pW: calc(var(--tunnel-w) / 5);
+  width: var(--pW);
+  height: calc(var(--pW) * 2 / 3);
+  background: ${({ theme }) => theme.colors.paddleBg};
+  border-radius: 22px;
+  border: 3px solid ${({ theme }) => theme.colors.opponentBorderRed};
+  box-shadow: 0 0 0 2px ${({ theme }) => theme.colors.opponentRedShadowInset} inset;
+  --pcw: 24%;
+  --pch: 28%;
+  z-index: 4;
+`
+
 export const PCenter = styled.div`
   position: absolute;
   left: 50%;
